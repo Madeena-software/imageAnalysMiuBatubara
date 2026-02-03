@@ -431,6 +431,7 @@ def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
 def analyze_grid_histograms(file_bytes, grid_results):
     """
     Analyze pixel value distribution for each grid position.
+    Histograms are arranged exactly matching the image grid layout.
 
     Parameters:
     -----------
@@ -460,11 +461,17 @@ def analyze_grid_histograms(file_bytes, grid_results):
         max_col = max(item["grid_pos"][1] for item in grid_data)
         grid_size = max(max_row, max_col) + 1
 
-        # Create NxN subplot for histograms
+        # Create a lookup dictionary by grid position (row, col) -> item
+        grid_lookup = {}
+        for item in grid_data:
+            row, col = item["grid_pos"]
+            grid_lookup[(row, col)] = item
+
+        # Create NxN subplot for histograms - arranged exactly as image positions
         fig_size = max(12, grid_size * 4)
         fig, axes = plt.subplots(grid_size, grid_size, figsize=(fig_size, fig_size))
         fig.suptitle(
-            f"Histogram Distribution - {grid_size}x{grid_size} Grid",
+            f"Histogram Distribution - {grid_size}x{grid_size} Grid (Arranged by Image Position)",
             fontsize=16,
             fontweight="bold",
         )
@@ -475,80 +482,96 @@ def analyze_grid_histograms(file_bytes, grid_results):
         elif grid_size > 1 and len(axes.shape) == 1:
             axes = axes.reshape(grid_size, 1)
 
-        for idx, item in enumerate(grid_data):
-            row, col = item["grid_pos"]
-            center = item["center"]
-            radius = item["radius"]
+        # Iterate through each grid position in order (row by row, column by column)
+        for row in range(grid_size):
+            for col in range(grid_size):
+                ax = axes[row, col]
+                grid_pos_id = row * grid_size + col + 1  # Position ID (1-based)
+                
+                # Check if we have data for this grid position
+                if (row, col) not in grid_lookup:
+                    # No data for this position - show empty plot
+                    ax.text(0.5, 0.5, f"Position [{row},{col}]\nNo Data", 
+                           transform=ax.transAxes, ha='center', va='center',
+                           fontsize=12, color='gray')
+                    ax.set_title(f"Pos {grid_pos_id} [{row},{col}]", fontsize=10, fontweight="bold", color='gray')
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
+                
+                item = grid_lookup[(row, col)]
+                center = item["center"]
+                radius = item["radius"]
 
-            # Create mask for circle area
-            mask = np.zeros_like(img_16bit, dtype=np.uint8)
-            cv2.circle(mask, center, int(radius * 0.7), 255, -1)
+                # Create mask for circle area
+                mask = np.zeros_like(img_16bit, dtype=np.uint8)
+                cv2.circle(mask, center, int(radius * 0.7), 255, -1)
 
-            # Extract pixel values inside circle
-            pixel_values = img_16bit[mask == 255]
+                # Extract pixel values inside circle
+                pixel_values = img_16bit[mask == 255]
 
-            # Calculate statistics
-            mean_val = float(np.mean(pixel_values))
-            median_val = float(np.median(pixel_values))
-            std_val = float(np.std(pixel_values))
-            min_val = float(np.min(pixel_values))
-            max_val = float(np.max(pixel_values))
+                # Calculate statistics
+                mean_val = float(np.mean(pixel_values))
+                median_val = float(np.median(pixel_values))
+                std_val = float(np.std(pixel_values))
+                min_val = float(np.min(pixel_values))
+                max_val = float(np.max(pixel_values))
 
-            histogram_stats.append(
-                {
-                    "grid_pos": (row, col),
-                    "center": center,
-                    "mean": mean_val,
-                    "median": median_val,
-                    "std": std_val,
-                    "min": min_val,
-                    "max": max_val,
-                    "pixel_count": len(pixel_values),
-                }
-            )
+                histogram_stats.append(
+                    {
+                        "grid_pos": (row, col),
+                        "position_id": grid_pos_id,
+                        "center": center,
+                        "mean": mean_val,
+                        "median": median_val,
+                        "std": std_val,
+                        "min": min_val,
+                        "max": max_val,
+                        "pixel_count": len(pixel_values),
+                    }
+                )
 
-            # Plot histogram in appropriate subplot
-            ax = axes[row, col]
-            ax.hist(
-                pixel_values, bins=50, color="steelblue", alpha=0.7, edgecolor="black"
-            )
+                # Plot histogram
+                ax.hist(
+                    pixel_values, bins=50, color="steelblue", alpha=0.7, edgecolor="black"
+                )
 
-            # Add mean and median lines
-            ax.axvline(
-                mean_val,
-                color="red",
-                linestyle="--",
-                linewidth=2,
-                label=f"Mean: {mean_val:.1f}",
-            )
-            ax.axvline(
-                median_val,
-                color="green",
-                linestyle="--",
-                linewidth=2,
-                label=f"Median: {median_val:.1f}",
-            )
+                # Add mean and median lines
+                ax.axvline(
+                    mean_val,
+                    color="red",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Mean: {mean_val:.1f}",
+                )
+                ax.axvline(
+                    median_val,
+                    color="green",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Median: {median_val:.1f}",
+                )
 
-            # Title and labels
-            ax.set_title(
-                f"Grid [{row},{col}] - Pos {center}", fontsize=10, fontweight="bold"
-            )
-            ax.set_xlabel("Pixel Value (16-bit)", fontsize=8)
-            ax.set_ylabel("Frequency", fontsize=8)
-            ax.legend(fontsize=7, loc="upper right")
-            ax.grid(True, alpha=0.3)
+                # Title shows Position ID and grid coordinates
+                ax.set_title(
+                    f"Pos {grid_pos_id} [{row},{col}]", fontsize=10, fontweight="bold"
+                )
+                ax.set_xlabel("Pixel Value (16-bit)", fontsize=8)
+                ax.set_ylabel("Frequency", fontsize=8)
+                ax.legend(fontsize=7, loc="upper right")
+                ax.grid(True, alpha=0.3)
 
-            # Add stats text box
-            stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.1f}"
-            ax.text(
-                0.02,
-                0.98,
-                stats_text,
-                transform=ax.transAxes,
-                fontsize=7,
-                verticalalignment="top",
-                bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
-            )
+                # Add stats text box
+                stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.1f}"
+                ax.text(
+                    0.02,
+                    0.98,
+                    stats_text,
+                    transform=ax.transAxes,
+                    fontsize=7,
+                    verticalalignment="top",
+                    bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+                )
 
         plt.tight_layout()
 

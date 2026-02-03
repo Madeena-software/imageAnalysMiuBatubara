@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -483,6 +486,49 @@
             font-size: 0.9rem;
             opacity: 0.7;
         }
+
+        .export-section {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .export-btn {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .export-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.6);
+        }
+
+        .export-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .export-btn.secondary {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .export-btn.secondary:hover:not(:disabled) {
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.6);
+        }
     </style>
 </head>
 <body>
@@ -664,6 +710,16 @@
                     <div id="diagonalComparison"></div>
                     <div id="diagonalSummary"></div>
                 </div>
+
+                <!-- Export Section -->
+                <div class="export-section">
+                    <button type="button" class="export-btn" id="exportCirclePdfBtn">
+                        📄 Export as PDF
+                    </button>
+                    <button type="button" class="export-btn secondary" id="exportCircleImagesBtn">
+                        🖼️ Download Images
+                    </button>
+                </div>
             </div>
 
             <!-- Block Detection Results -->
@@ -729,6 +785,16 @@
                     <h3>📊 Block Comparison - Block 1 vs Block 3</h3>
                     <div id="blockComparisonImage"></div>
                     <div id="blockComparisonSummary"></div>
+                </div>
+
+                <!-- Export Section -->
+                <div class="export-section">
+                    <button type="button" class="export-btn" id="exportBlockPdfBtn">
+                        📄 Export as PDF
+                    </button>
+                    <button type="button" class="export-btn secondary" id="exportBlockImagesBtn">
+                        🖼️ Download Images
+                    </button>
                 </div>
             </div>
         </div>
@@ -1389,10 +1455,50 @@
             '''
             summary_div.innerHTML = summary_html
 
+        async def export_circle_pdf(event):
+            """Export circle detection results as PDF"""
+            try:
+                show_message("Generating PDF... Please wait.", False)
+                await asyncio.sleep(0.1)
+                window.exportCircleResultsToPdf()
+            except Exception as e:
+                console.error(f"PDF export error: {str(e)}")
+                show_message(f"Error exporting PDF: {str(e)}", True)
+
+        async def export_block_pdf(event):
+            """Export block detection results as PDF"""
+            try:
+                show_message("Generating PDF... Please wait.", False)
+                await asyncio.sleep(0.1)
+                window.exportBlockResultsToPdf()
+            except Exception as e:
+                console.error(f"PDF export error: {str(e)}")
+                show_message(f"Error exporting PDF: {str(e)}", True)
+
+        async def export_circle_images(event):
+            """Download circle detection images"""
+            try:
+                window.downloadCircleImages()
+            except Exception as e:
+                console.error(f"Image download error: {str(e)}")
+                show_message(f"Error downloading images: {str(e)}", True)
+
+        async def export_block_images(event):
+            """Download block detection images"""
+            try:
+                window.downloadBlockImages()
+            except Exception as e:
+                console.error(f"Image download error: {str(e)}")
+                show_message(f"Error downloading images: {str(e)}", True)
+
         # Event listeners
         document.getElementById('fileInput').addEventListener('change', create_proxy(handle_file_upload))
         document.getElementById('processBtn').addEventListener('click', create_proxy(process_circle_image))
         document.getElementById('processBlockBtn').addEventListener('click', create_proxy(process_block_image))
+        document.getElementById('exportCirclePdfBtn').addEventListener('click', create_proxy(export_circle_pdf))
+        document.getElementById('exportBlockPdfBtn').addEventListener('click', create_proxy(export_block_pdf))
+        document.getElementById('exportCircleImagesBtn').addEventListener('click', create_proxy(export_circle_images))
+        document.getElementById('exportBlockImagesBtn').addEventListener('click', create_proxy(export_block_images))
 
         console.log("PyScript initialized successfully!")
         
@@ -1406,7 +1512,7 @@
             console.log('Initialization complete - interface ready')
     </script>
 
-    <!-- JavaScript for mode switching -->
+    <!-- JavaScript for mode switching and PDF export -->
     <script>
         function switchMode(mode) {
             // Update button states
@@ -1420,6 +1526,539 @@
             // Hide results
             document.getElementById('resultsSection').classList.remove('active');
             document.getElementById('blockResultsSection').classList.remove('active');
+        }
+
+        // PDF Export Functions
+        function getImageDataFromElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return null;
+            const img = element.querySelector('img');
+            if (!img) return null;
+            return img.src;
+        }
+
+        function getTableDataFromElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return null;
+            const table = element.querySelector('table');
+            if (!table) return null;
+            
+            const data = [];
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+                const rowData = [];
+                const cells = row.querySelectorAll('th, td');
+                cells.forEach(cell => {
+                    rowData.push(cell.textContent.trim());
+                });
+                data.push(rowData);
+            });
+            return data;
+        }
+
+        function getSummaryTextFromElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return null;
+            return element.innerText || element.textContent;
+        }
+
+        function getParametersFromUI(mode) {
+            if (mode === 'circle') {
+                return {
+                    'Threshold Value': document.getElementById('thresholdValue').value,
+                    'Min Diameter': document.getElementById('minDiameter').value + ' px',
+                    'Max Diameter': document.getElementById('maxDiameter').value + ' px',
+                    'Min Circularity': document.getElementById('minCircularity').value,
+                    'Min Solidity': document.getElementById('minSolidity').value
+                };
+            } else {
+                return {
+                    'Threshold Value': document.getElementById('blockThreshold').value,
+                    'Min Length': document.getElementById('minLength').value + ' px',
+                    'Max Length': document.getElementById('maxLength').value + ' px',
+                    'Min Rectangularity': document.getElementById('minRectangularity').value,
+                    'Min Solidity': document.getElementById('blockMinSolidity').value,
+                    'Subdivisions': document.getElementById('numSubdivisions').value
+                };
+            }
+        }
+
+        function addParametersSection(pdf, params, margin, yPos) {
+            pdf.setFontSize(12);
+            pdf.setTextColor(102, 126, 234);
+            pdf.text('Processing Parameters', margin, yPos);
+            yPos += 7;
+            
+            pdf.setFontSize(10);
+            pdf.setTextColor(60);
+            for (const [key, value] of Object.entries(params)) {
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(key + ':', margin, yPos);
+                pdf.setFont('helvetica', 'normal');
+                pdf.text(String(value), margin + 45, yPos);
+                yPos += 6;
+            }
+            return yPos + 5;
+        }
+
+        function addTableToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, title) {
+            if (!tableData || tableData.length === 0) return yPos;
+            
+            // Add title
+            pdf.setFontSize(12);
+            pdf.setTextColor(102, 126, 234);
+            pdf.text(title, margin, yPos);
+            yPos += 8;
+            
+            pdf.setFontSize(8);
+            const colWidth = contentWidth / tableData[0].length;
+            
+            tableData.forEach((row, rowIndex) => {
+                if (yPos > pageHeight - 20) {
+                    pdf.addPage();
+                    yPos = 15;
+                }
+                
+                row.forEach((cell, colIndex) => {
+                    if (rowIndex === 0) {
+                        pdf.setFillColor(102, 126, 234);
+                        pdf.setTextColor(255);
+                        pdf.rect(margin + colIndex * colWidth, yPos - 4, colWidth, 8, 'F');
+                    } else {
+                        pdf.setTextColor(0);
+                        if (rowIndex % 2 === 0) {
+                            pdf.setFillColor(245, 247, 250);
+                            pdf.rect(margin + colIndex * colWidth, yPos - 4, colWidth, 7, 'F');
+                        }
+                    }
+                    const cellText = cell.length > 18 ? cell.substring(0, 16) + '..' : cell;
+                    pdf.text(cellText, margin + colIndex * colWidth + 2, yPos);
+                });
+                yPos += rowIndex === 0 ? 8 : 7;
+            });
+            
+            return yPos + 5;
+        }
+
+        function addSummarySection(pdf, summaryHtml, margin, yPos, pageHeight, title) {
+            if (!summaryHtml) return yPos;
+            
+            // Check if we need a new page
+            if (yPos > pageHeight - 60) {
+                pdf.addPage();
+                yPos = 15;
+            }
+            
+            pdf.setFontSize(12);
+            pdf.setTextColor(102, 126, 234);
+            pdf.text(title, margin, yPos);
+            yPos += 8;
+            
+            // Parse summary text and add to PDF
+            const lines = summaryHtml.split('\n').filter(line => line.trim());
+            pdf.setFontSize(9);
+            pdf.setTextColor(60);
+            
+            lines.forEach(line => {
+                if (yPos > pageHeight - 15) {
+                    pdf.addPage();
+                    yPos = 15;
+                }
+                const cleanLine = line.replace(/\s+/g, ' ').trim();
+                if (cleanLine) {
+                    pdf.text(cleanLine.substring(0, 90), margin, yPos);
+                    yPos += 5;
+                }
+            });
+            
+            return yPos + 5;
+        }
+
+        function addImageToPdf(pdf, imgSrc, x, y, maxWidth, maxHeight) {
+            return new Promise((resolve) => {
+                if (!imgSrc || !imgSrc.startsWith('data:image')) {
+                    resolve({ width: 0, height: 0 });
+                    return;
+                }
+                
+                const img = new Image();
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // Scale to fit
+                    if (width > maxWidth) {
+                        height = height * (maxWidth / width);
+                        width = maxWidth;
+                    }
+                    if (height > maxHeight) {
+                        width = width * (maxHeight / height);
+                        height = maxHeight;
+                    }
+                    
+                    try {
+                        pdf.addImage(imgSrc, 'PNG', x, y, width, height);
+                    } catch (e) {
+                        console.error('Error adding image:', e);
+                    }
+                    resolve({ width, height });
+                };
+                img.onerror = function() {
+                    resolve({ width: 0, height: 0 });
+                };
+                img.src = imgSrc;
+            });
+        }
+
+        async function exportCircleResultsToPdf() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 15;
+            const contentWidth = pageWidth - 2 * margin;
+            let yPos = margin;
+
+            // ===== PAGE 1: Title, Parameters, Detection Images =====
+            // Title
+            pdf.setFontSize(22);
+            pdf.setTextColor(102, 126, 234);
+            pdf.text('Circle Detection Analysis Report', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 10;
+
+            // Date
+            pdf.setFontSize(10);
+            pdf.setTextColor(100);
+            pdf.text('Generated: ' + new Date().toLocaleString(), pageWidth / 2, yPos, { align: 'center' });
+            yPos += 5;
+            
+            // Divider line
+            pdf.setDrawColor(102, 126, 234);
+            pdf.setLineWidth(0.5);
+            pdf.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 10;
+
+            // Processing Parameters
+            const circleParams = getParametersFromUI('circle');
+            yPos = addParametersSection(pdf, circleParams, margin, yPos);
+            yPos += 5;
+
+            // Detection Image
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Detection Result', margin, yPos);
+            yPos += 5;
+            
+            const detectionImg = getImageDataFromElement('detectionImage');
+            if (detectionImg) {
+                const result = await addImageToPdf(pdf, detectionImg, margin, yPos, contentWidth, 70);
+                yPos += result.height + 8;
+            }
+
+            // Mask Image
+            if (yPos > pageHeight - 90) {
+                pdf.addPage();
+                yPos = margin;
+            }
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Threshold Mask (pixels < ' + circleParams['Threshold Value'] + ')', margin, yPos);
+            yPos += 5;
+            
+            const maskImg = getImageDataFromElement('maskImage');
+            if (maskImg) {
+                const result = await addImageToPdf(pdf, maskImg, margin, yPos, contentWidth, 70);
+                yPos += result.height + 10;
+            }
+
+            // ===== PAGE 2: Circle Statistics Table =====
+            pdf.addPage();
+            yPos = margin;
+            
+            // Statistics Table
+            const tableData = getTableDataFromElement('statsTable');
+            yPos = addTableToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, 'Detection Statistics - All Detected Circles');
+
+            // ===== PAGE 3: Grid Analysis =====
+            pdf.addPage();
+            yPos = margin;
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Grid Analysis (16 Positions)', margin, yPos);
+            yPos += 5;
+            
+            const gridImg = getImageDataFromElement('gridImage');
+            if (gridImg) {
+                const result = await addImageToPdf(pdf, gridImg, margin, yPos, contentWidth, 120);
+                yPos += result.height + 10;
+            }
+
+            // ===== PAGE 4: Histogram Analysis =====
+            pdf.addPage();
+            yPos = margin;
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Histogram Analysis for Each Grid Position', margin, yPos);
+            yPos += 5;
+            
+            const histogramImg = getImageDataFromElement('histogramImage');
+            if (histogramImg) {
+                const result = await addImageToPdf(pdf, histogramImg, margin, yPos, contentWidth, 160);
+                yPos += result.height + 10;
+            }
+
+            // ===== PAGE 5: Diagonal Comparison with Summary =====
+            pdf.addPage();
+            yPos = margin;
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Diagonal Comparison Statistics', margin, yPos);
+            yPos += 5;
+            
+            const diagonalImg = getImageDataFromElement('diagonalComparison');
+            if (diagonalImg) {
+                const result = await addImageToPdf(pdf, diagonalImg, margin, yPos, contentWidth, 90);
+                yPos += result.height + 8;
+            }
+
+            // Diagonal Summary Statistics Table
+            const diagonalSummaryTable = getTableDataFromElement('diagonalSummary');
+            if (diagonalSummaryTable) {
+                yPos = addTableToPdf(pdf, diagonalSummaryTable, margin, yPos, pageHeight, contentWidth, 'Summary Statistics');
+            } else {
+                // Try to get summary text
+                const diagonalSummaryText = getSummaryTextFromElement('diagonalSummary');
+                if (diagonalSummaryText) {
+                    yPos = addSummarySection(pdf, diagonalSummaryText, margin, yPos, pageHeight, 'Summary Statistics');
+                }
+            }
+
+            // ===== Final Page: Summary Footer =====
+            if (yPos > pageHeight - 40) {
+                pdf.addPage();
+                yPos = margin;
+            }
+            yPos += 10;
+            pdf.setDrawColor(102, 126, 234);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 8;
+            pdf.setFontSize(10);
+            pdf.setTextColor(100);
+            pdf.text('Image Analysis Tool - Circle & Block Detection', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 5;
+            pdf.setFontSize(8);
+            pdf.text('Powered by PyScript & OpenCV', pageWidth / 2, yPos, { align: 'center' });
+
+            // Save PDF
+            pdf.save('circle_detection_results.pdf');
+        }
+
+        async function exportBlockResultsToPdf() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 15;
+            const contentWidth = pageWidth - 2 * margin;
+            let yPos = margin;
+
+            // ===== PAGE 1: Title, Parameters, Detection Images =====
+            // Title
+            pdf.setFontSize(22);
+            pdf.setTextColor(102, 126, 234);
+            pdf.text('Block Detection Analysis Report', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 10;
+
+            // Date
+            pdf.setFontSize(10);
+            pdf.setTextColor(100);
+            pdf.text('Generated: ' + new Date().toLocaleString(), pageWidth / 2, yPos, { align: 'center' });
+            yPos += 5;
+            
+            // Divider line
+            pdf.setDrawColor(102, 126, 234);
+            pdf.setLineWidth(0.5);
+            pdf.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 10;
+
+            // Processing Parameters
+            const blockParams = getParametersFromUI('block');
+            yPos = addParametersSection(pdf, blockParams, margin, yPos);
+            yPos += 5;
+
+            // Detection Image
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Block Detection Result', margin, yPos);
+            yPos += 5;
+            
+            const detectionImg = getImageDataFromElement('blockDetectionImage');
+            if (detectionImg) {
+                const result = await addImageToPdf(pdf, detectionImg, margin, yPos, contentWidth, 70);
+                yPos += result.height + 8;
+            }
+
+            // Mask Image
+            if (yPos > pageHeight - 90) {
+                pdf.addPage();
+                yPos = margin;
+            }
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Threshold Mask (pixels < ' + blockParams['Threshold Value'] + ')', margin, yPos);
+            yPos += 5;
+            
+            const maskImg = getImageDataFromElement('blockMaskImage');
+            if (maskImg) {
+                const result = await addImageToPdf(pdf, maskImg, margin, yPos, contentWidth, 70);
+                yPos += result.height + 10;
+            }
+
+            // ===== PAGE 2: Block Statistics Table =====
+            pdf.addPage();
+            yPos = margin;
+            
+            const tableData = getTableDataFromElement('blockStatsTable');
+            yPos = addTableToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, 'Block Statistics - All Blocks');
+
+            // ===== PAGE 3: Block Histogram Analysis =====
+            pdf.addPage();
+            yPos = margin;
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Block Histogram Analysis', margin, yPos);
+            yPos += 5;
+            
+            const blockHistogramImg = getImageDataFromElement('blockHistogramImage');
+            if (blockHistogramImg) {
+                const result = await addImageToPdf(pdf, blockHistogramImg, margin, yPos, contentWidth, 120);
+                yPos += result.height + 10;
+            }
+
+            // ===== PAGE 4: Block Subdivisions =====
+            pdf.addPage();
+            yPos = margin;
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Block Subdivisions Visualization', margin, yPos);
+            yPos += 5;
+            
+            const subdivisionImg = getImageDataFromElement('subdivisionImage');
+            if (subdivisionImg) {
+                const result = await addImageToPdf(pdf, subdivisionImg, margin, yPos, contentWidth, 140);
+                yPos += result.height + 10;
+            }
+
+            // ===== PAGES 5-8: Subdivision Histograms for each block =====
+            for (let i = 1; i <= 4; i++) {
+                pdf.addPage();
+                yPos = margin;
+                pdf.setFontSize(14);
+                pdf.setTextColor(51, 51, 51);
+                pdf.text('Subdivision Histograms - Block ' + i, margin, yPos);
+                yPos += 5;
+                
+                const subHistImg = getImageDataFromElement('subdivisionHistogram' + i);
+                if (subHistImg) {
+                    const result = await addImageToPdf(pdf, subHistImg, margin, yPos, contentWidth, 160);
+                    yPos += result.height + 10;
+                }
+            }
+
+            // ===== PAGE 9: Block Comparison with Summary =====
+            pdf.addPage();
+            yPos = margin;
+            pdf.setFontSize(14);
+            pdf.setTextColor(51, 51, 51);
+            pdf.text('Block Comparison - Block 1 vs Block 3', margin, yPos);
+            yPos += 5;
+            
+            const comparisonImg = getImageDataFromElement('blockComparisonImage');
+            if (comparisonImg) {
+                const result = await addImageToPdf(pdf, comparisonImg, margin, yPos, contentWidth, 90);
+                yPos += result.height + 8;
+            }
+
+            // Block Comparison Summary Statistics Table
+            const comparisonSummaryTable = getTableDataFromElement('blockComparisonSummary');
+            if (comparisonSummaryTable) {
+                yPos = addTableToPdf(pdf, comparisonSummaryTable, margin, yPos, pageHeight, contentWidth, 'Summary Statistics');
+            } else {
+                // Try to get summary text
+                const comparisonSummaryText = getSummaryTextFromElement('blockComparisonSummary');
+                if (comparisonSummaryText) {
+                    yPos = addSummarySection(pdf, comparisonSummaryText, margin, yPos, pageHeight, 'Summary Statistics');
+                }
+            }
+
+            // ===== Final Page: Summary Footer =====
+            if (yPos > pageHeight - 40) {
+                pdf.addPage();
+                yPos = margin;
+            }
+            yPos += 10;
+            pdf.setDrawColor(102, 126, 234);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 8;
+            pdf.setFontSize(10);
+            pdf.setTextColor(100);
+            pdf.text('Image Analysis Tool - Circle & Block Detection', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 5;
+            pdf.setFontSize(8);
+            pdf.text('Powered by PyScript & OpenCV', pageWidth / 2, yPos, { align: 'center' });
+
+            // Save PDF
+            pdf.save('block_detection_results.pdf');
+        }
+
+        function downloadImage(imgSrc, filename) {
+            if (!imgSrc) return;
+            const link = document.createElement('a');
+            link.href = imgSrc;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadCircleImages() {
+            const images = [
+                { id: 'detectionImage', name: 'circle_detection.png' },
+                { id: 'maskImage', name: 'circle_mask.png' },
+                { id: 'gridImage', name: 'circle_grid.png' },
+                { id: 'histogramImage', name: 'circle_histogram.png' },
+                { id: 'diagonalComparison', name: 'circle_diagonal_comparison.png' }
+            ];
+            
+            images.forEach((item, index) => {
+                setTimeout(() => {
+                    const imgSrc = getImageDataFromElement(item.id);
+                    if (imgSrc) downloadImage(imgSrc, item.name);
+                }, index * 500);
+            });
+        }
+
+        function downloadBlockImages() {
+            const images = [
+                { id: 'blockDetectionImage', name: 'block_detection.png' },
+                { id: 'blockMaskImage', name: 'block_mask.png' },
+                { id: 'blockHistogramImage', name: 'block_histogram.png' },
+                { id: 'subdivisionImage', name: 'block_subdivision.png' },
+                { id: 'subdivisionHistogram1', name: 'block1_subdivision_histogram.png' },
+                { id: 'subdivisionHistogram2', name: 'block2_subdivision_histogram.png' },
+                { id: 'subdivisionHistogram3', name: 'block3_subdivision_histogram.png' },
+                { id: 'subdivisionHistogram4', name: 'block4_subdivision_histogram.png' },
+                { id: 'blockComparisonImage', name: 'block_comparison.png' }
+            ];
+            
+            images.forEach((item, index) => {
+                setTimeout(() => {
+                    const imgSrc = getImageDataFromElement(item.id);
+                    if (imgSrc) downloadImage(imgSrc, item.name);
+                }, index * 500);
+            });
         }
     </script>
 </body>

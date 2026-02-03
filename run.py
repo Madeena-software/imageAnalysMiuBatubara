@@ -27,9 +27,10 @@ def main():
             print("Usage: python run.py [port]")
             sys.exit(1)
 
-    # Change to script directory
+    # Change to public directory where web files are located
     script_dir = Path(__file__).parent.absolute()
-    os.chdir(script_dir)
+    public_dir = script_dir / "public"
+    os.chdir(public_dir)
 
     # Create HTTP server with standard handler
     Handler = http.server.SimpleHTTPRequestHandler
@@ -45,7 +46,7 @@ def main():
         print("🎯 Circle & Block Detection Web Application")
         print("=" * 60)
         print(f"Server running at: {url}")
-        print(f"Directory: {script_dir}")
+        print(f"Directory: {public_dir}")
         print("\n📂 Available files:")
         print(f"   • {url}/index.html (Main application)")
         print(f"   • {url}/processor.py (Processing module)")
@@ -60,11 +61,11 @@ def main():
 
         # Try to open browser automatically
         try:
-            webbrowser.open(f"{url}/index.html")
-            print(f"✅ Opening {url}/index.html in your browser...")
+            webbrowser.open(f"{url}/image-analysis-miu-batubara/index.html")
+            print(f"✅ Opening {url}/image-analysis-miu-batubara/index.html in your browser...")
         except Exception as e:
             print(f"⚠️  Could not auto-open browser: {e}")
-            print(f"   Please manually open: {url}/index.html")
+            print(f"   Please manually open: {url}/image-analysis-miu-batubara/index.html")
 
         print()
 

@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "public",
+    "public": "public/image-analysis-miu-batubara",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -48,9 +48,9 @@
       }
     ],
     "rewrites": [
-       {
-        "source": "/image-analysis-miu-batubara/**",
-        "destination": "/image-analysis-miu-batubara/index.html"
+      {
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   }

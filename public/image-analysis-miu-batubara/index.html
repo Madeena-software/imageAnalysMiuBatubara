@@ -5,13 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Analysis - Circle & Block Detection</title>
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%231572E8;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%236861CE;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='20' fill='url(%23grad)'/%3E%3Ccircle cx='35' cy='35' r='15' fill='white' opacity='0.9'/%3E%3Crect x='55' y='20' width='30' height='30' rx='3' fill='white' opacity='0.9'/%3E%3Cpath d='M 20 65 L 80 65 L 80 85 L 20 85 Z' fill='white' opacity='0.9'/%3E%3C/svg%3E">
-    
-    <!-- Meta Tags for SEO -->
-    <meta name="description" content="Tool for detecting circles and blocks in TIFF images. Analyze geometric shapes and generate statistics.">
-    <meta name="robots" content="index, follow">
-    
     <!-- PyScript -->
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -24,12 +17,10 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1572E8 0%, #6861CE 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
-            font-size: 14px;
-            color: #575962;
         }
 
         .container {
@@ -42,7 +33,7 @@
         }
 
         header {
-            background: linear-gradient(135deg, #1572E8 0%, #6861CE 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
@@ -67,23 +58,21 @@
         }
 
         .mode-btn {
-            background: rgba(255, 255, 255, 0.3);
-            color: white;
+            background: white;
+            color: #667eea;
             padding: 10px 30px;
-            border: 2px solid rgba(255, 255, 255, 0.5);
+            border: 2px solid white;
             border-radius: 25px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.15s, transform 0.15s;
+            transition: all 0.3s ease;
         }
 
         .mode-btn.active {
-            background: white;
-            color: #1572E8;
-            border-color: white;
+            background: #667eea;
+            color: white;
             transform: scale(1.05);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .mode-btn:hover {
@@ -95,23 +84,24 @@
         }
 
         .upload-section {
-            background: #f9fbfd;
-            border: 3px dashed #1572E8;
+            background: #f8f9fa;
+            border: 3px dashed #667eea;
             border-radius: 15px;
             padding: 40px;
             text-align: center;
             margin-bottom: 30px;
-            transition: border-color 0.15s;
+            transition: all 0.3s ease;
         }
 
         .upload-section:hover {
-            border-color: #6861CE;
+            border-color: #764ba2;
             background: #f0f1ff;
         }
 
         .upload-section.dragover {
             background: #e8eaff;
-            border-color: #6861CE;
+            border-color: #764ba2;
+            transform: scale(1.02);
         }
 
         .file-input-wrapper {
@@ -126,7 +116,7 @@
         }
 
         .file-input-label {
-            background: linear-gradient(135deg, #1572E8 0%, #6861CE 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 40px;
             border-radius: 50px;
@@ -134,17 +124,18 @@
             font-size: 1.1rem;
             font-weight: 600;
             display: inline-block;
-            transition: transform 0.15s;
-            box-shadow: 0 4px 15px rgba(21, 114, 232, 0.4);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
 
         .file-input-label:hover {
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
 
         .file-info {
             margin-top: 15px;
-            color: #575962;
+            color: #555;
             font-size: 0.95rem;
         }
 
@@ -159,8 +150,8 @@
         }
 
         .file-loading .spinner-small {
-            border: 3px solid #f1f1f1;
-            border-top: 3px solid #1572E8;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -169,7 +160,7 @@
         }
 
         .file-loading p {
-            color: #1572E8;
+            color: #667eea;
             font-weight: 600;
             font-size: 0.9rem;
         }
@@ -201,7 +192,7 @@
         }
 
         .parameters-section {
-            background: #f9fbfd;
+            background: #f8f9fa;
             border-radius: 15px;
             padding: 30px;
             margin-bottom: 30px;
@@ -226,7 +217,7 @@
         }
 
         .param-item label {
-            color: #575962;
+            color: #555;
             font-weight: 600;
             margin-bottom: 8px;
             font-size: 0.9rem;
@@ -234,25 +225,26 @@
 
         .param-item input {
             padding: 10px 15px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid #ddd;
             border-radius: 8px;
             font-size: 1rem;
-            transition: border-color 0.15s;
+            transition: all 0.3s ease;
         }
 
         .param-item input:focus {
             outline: none;
-            border-color: #1572E8;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
         .param-item small {
-            color: #575962;
+            color: #777;
             margin-top: 5px;
             font-size: 0.85rem;
         }
 
         .process-btn {
-            background: linear-gradient(135deg, #1572E8 0%, #6861CE 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 50px;
             border: none;
@@ -260,14 +252,15 @@
             font-size: 1.2rem;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.15s;
-            box-shadow: 0 4px 15px rgba(21, 114, 232, 0.4);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
             display: block;
             margin: 30px auto 0;
         }
 
         .process-btn:hover:not(:disabled) {
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
 
         .process-btn:disabled {
@@ -286,8 +279,8 @@
         }
 
         .spinner {
-            border: 4px solid #f1f1f1;
-            border-top: 4px solid #1572E8;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
             border-radius: 50%;
             width: 50px;
             height: 50px;
@@ -335,14 +328,14 @@
         }
 
         .result-image h3 {
-            background: #1572E8;
+            background: #667eea;
             color: white;
             padding: 15px;
             font-size: 1.2rem;
         }
 
         .stats-section {
-            background: #f9fbfd;
+            background: #f8f9fa;
             border-radius: 15px;
             padding: 30px;
             margin-top: 20px;
@@ -364,7 +357,7 @@
         }
 
         .stats-table th {
-            background: #1572E8;
+            background: #667eea;
             color: white;
             padding: 15px;
             text-align: left;
@@ -381,12 +374,12 @@
         }
 
         .stats-table tr:hover {
-            background: #f9fbfd;
+            background: #f8f9fa;
         }
 
         .error-message {
             display: none;
-            background: #F25961;
+            background: #ff4757;
             color: white;
             padding: 20px;
             border-radius: 10px;
@@ -399,7 +392,7 @@
 
         .success-message {
             display: none;
-            background: #31CE36;
+            background: #2ecc71;
             color: white;
             padding: 20px;
             border-radius: 10px;
@@ -411,7 +404,7 @@
         }
 
         footer {
-            background: #1a2035;
+            background: #2d3436;
             color: white;
             text-align: center;
             padding: 20px;
@@ -444,7 +437,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #1572E8 0%, #6861CE 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -490,224 +483,6 @@
             font-size: 0.9rem;
             opacity: 0.7;
         }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 20px;
-        }
-
-        .reset-btn, .download-btn {
-            background: #6c757d;
-            color: white;
-            padding: 10px 30px;
-            border: none;
-            border-radius: 25px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s, opacity 0.15s, transform 0.15s;
-            position: relative;
-        }
-
-        .reset-btn:hover {
-            background: #5a6268;
-        }
-
-        .download-btn {
-            background: #31CE36;
-        }
-
-        .download-btn:hover:not(:disabled) {
-            background: #2BB930;
-            transform: translateY(-1px);
-        }
-
-        .download-btn:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        .download-btn.loading {
-            pointer-events: none;
-            opacity: 0.8;
-        }
-
-        .download-btn .btn-spinner {
-            display: none;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top: 2px solid white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-
-        .download-btn.loading .btn-spinner {
-            display: inline-block;
-        }
-
-        .download-btn.loading .btn-text {
-            opacity: 0.9;
-        }
-
-        /* Collapsible Advanced Parameters */
-        .advanced-toggle {
-            background: transparent;
-            border: 2px solid #1572E8;
-            color: #1572E8;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            margin-bottom: 15px;
-            transition: background 0.15s;
-        }
-
-        .advanced-toggle:hover {
-            background: #1572E8;
-            color: white;
-        }
-
-        .advanced-params {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .advanced-params.expanded {
-            max-height: 1000px;
-        }
-
-        /* Help Section */
-        .help-section {
-            background: #e8f4fd;
-            border-left: 4px solid #48ABF7;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .help-section h3 {
-            color: #1572E8;
-            margin-bottom: 10px;
-            font-size: 1.1rem;
-        }
-
-        .help-section ul {
-            margin: 10px 0 0 20px;
-            line-height: 1.8;
-        }
-
-        .help-toggle {
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .help-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .help-content.expanded {
-            max-height: 500px;
-            margin-top: 15px;
-        }
-
-        /* Validation Feedback */
-        .param-item input.invalid {
-            border-color: #F25961;
-            background: #fff5f5;
-        }
-
-        .param-item .validation-msg {
-            color: #F25961;
-            font-size: 0.8rem;
-            margin-top: 5px;
-            display: none;
-        }
-
-        .param-item .validation-msg.active {
-            display: block;
-        }
-
-        /* Mobile Responsiveness */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-
-            header h1 {
-                font-size: 1.8rem;
-            }
-
-            header p {
-                font-size: 0.95rem;
-            }
-
-            .content {
-                padding: 20px;
-            }
-
-            .param-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .results-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .mode-toggle {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .mode-btn {
-                width: 100%;
-                padding: 12px 20px;
-            }
-
-            .process-btn {
-                width: 100%;
-                padding: 12px 30px;
-            }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-
-            .reset-btn, .download-btn {
-                width: 100%;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                border-radius: 10px;
-            }
-
-            header {
-                padding: 20px 15px;
-            }
-
-            .upload-section {
-                padding: 20px;
-            }
-
-            .parameters-section {
-                padding: 20px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -724,7 +499,7 @@
     <div class="container">
         <header>
             <h1>🎯 Image Analysis Tool</h1>
-            <p>TIFF Image Processing with Circle & Block Detection</p>
+            <p>Advanced TIFF Image Processing with Circle & Block Detection</p>
             
             <!-- Mode Toggle -->
             <div class="mode-toggle">
@@ -741,36 +516,16 @@
             <div class="error-message" id="errorMessage"></div>
             <div class="success-message" id="successMessage"></div>
 
-            <!-- Help Section -->
-            <div class="help-section">
-                <div class="help-toggle" onclick="toggleHelp()" role="button" tabindex="0" aria-expanded="false" aria-controls="helpContent">
-                    <span id="helpIcon">ℹ️</span>
-                    <h3 style="margin: 0;">Quick Start Guide</h3>
-                </div>
-                <div class="help-content" id="helpContent">
-                    <ul>
-                        <li><strong>Step 1:</strong> Upload a TIFF image file (drag & drop or click to browse)</li>
-                        <li><strong>Step 2:</strong> Choose detection mode: Circle or Block</li>
-                        <li><strong>Step 3:</strong> Adjust parameters if needed (or use defaults)</li>
-                        <li><strong>Step 4:</strong> Click Process button and wait for results</li>
-                        <li><strong>Tip:</strong> Hover over parameter labels to see what they control</li>
-                    </ul>
-                </div>
-            </div>
-
             <!-- Upload Section -->
-            <div class="upload-section" id="uploadSection" role="region" aria-label="File upload area">
+            <div class="upload-section" id="uploadSection">
                 <div class="file-input-wrapper">
-                    <input type="file" id="fileInput" accept=".tiff,.tif" aria-label="Choose TIFF file" />
+                    <input type="file" id="fileInput" accept=".tiff,.tif" />
                     <label for="fileInput" class="file-input-label">
                         📁 Choose TIFF File
                     </label>
                 </div>
                 <div class="file-info" id="fileInfo">
-                    No file selected. <strong>Drag and drop</strong> a TIFF file here or click to browse.
-                </div>
-                <div class="action-buttons" style="display: none;" id="fileActions">
-                    <button type="button" class="reset-btn" onclick="resetUpload()" aria-label="Clear uploaded file">🔄 Clear File</button>
+                    No file selected. Drag and drop a TIFF file here or click to browse.
                 </div>
                 <div class="file-loading" id="fileLoading">
                     <div class="spinner-small"></div>
@@ -787,19 +542,10 @@
                 <h2>⚙️ Circle Detection Parameters</h2>
                 <div class="param-grid">
                     <div class="param-item">
-                        <label for="thresholdValue">Threshold (pixel value) <span style="color: #dc3545;">*</span></label>
-                        <input type="number" id="thresholdValue" value="24000" min="1000" max="65535" step="100" aria-label="Threshold value for circle detection" aria-required="true" />
+                        <label for="thresholdValue">Threshold (pixel value)</label>
+                        <input type="number" id="thresholdValue" value="24000" min="1000" max="65535" step="100" />
                         <small><strong>Impact:</strong> Pixels BELOW this value are detected as circles. Lower = detect brighter areas, Higher = detect darker areas only (default: 24000)</small>
-                        <div class="validation-msg" id="thresholdValueError"></div>
                     </div>
-                </div>
-                
-                <button type="button" class="advanced-toggle" onclick="toggleAdvanced('circle')" aria-expanded="false" aria-controls="circleAdvanced">
-                    ⚙️ Advanced Parameters (Optional)
-                </button>
-                
-                <div class="advanced-params" id="circleAdvanced">
-                    <div class="param-grid">
                     <div class="param-item">
                         <label for="minDiameter">Min Diameter (px)</label>
                         <input type="number" id="minDiameter" value="50" min="10" max="500" step="5" />
@@ -820,19 +566,11 @@
                         <input type="number" id="minSolidity" value="0.7" min="0.1" max="1.0" step="0.05" />
                         <small><strong>Impact:</strong> How solid/filled the shape is (1.0 = no holes). Lower = accept shapes with holes/dents, Higher = only solid circles (default: 0.7)</small>
                     </div>
-                    </div>
                 </div>
 
-                <button type="button" class="process-btn" id="processBtn" disabled aria-label="Process circle detection">
+                <button type="button" class="process-btn" id="processBtn" disabled>
                     🚀 Process Circle Detection
                 </button>
-                <div class="action-buttons" style="display: none;" id="circleActions">
-                    <button type="button" class="download-btn" id="exportCirclePdfBtn" style="background: #6861CE;" aria-label="Export circle detection to PDF">
-                        <span class="btn-spinner"></span>
-                        <span class="btn-text">📄 Export PDF Report</span>
-                    </button>
-                    <button type="button" class="reset-btn" onclick="resetAnalysis()" aria-label="Reset analysis">🔄 Reset</button>
-                </div>
             </div>
 
             <!-- Block Parameters Section -->
@@ -840,19 +578,10 @@
                 <h2>⚙️ Block Detection Parameters</h2>
                 <div class="param-grid">
                     <div class="param-item">
-                        <label for="blockThreshold">Threshold (pixel value) <span style="color: #dc3545;">*</span></label>
-                        <input type="number" id="blockThreshold" value="55000" min="1000" max="65535" step="100" aria-label="Threshold value for block detection" aria-required="true" />
+                        <label for="blockThreshold">Threshold (pixel value)</label>
+                        <input type="number" id="blockThreshold" value="55000" min="1000" max="65535" step="100" />
                         <small><strong>Impact:</strong> Pixels BELOW this value are detected as blocks (default: 55000)</small>
-                        <div class="validation-msg" id="blockThresholdError"></div>
                     </div>
-                </div>
-                
-                <button type="button" class="advanced-toggle" onclick="toggleAdvanced('block')" aria-expanded="false" aria-controls="blockAdvanced">
-                    ⚙️ Advanced Parameters (Optional)
-                </button>
-                
-                <div class="advanced-params" id="blockAdvanced">
-                    <div class="param-grid">
                     <div class="param-item">
                         <label for="minLength">Min Length (px)</label>
                         <input type="number" id="minLength" value="1400" min="100" max="3000" step="50" />
@@ -878,19 +607,11 @@
                         <input type="number" id="numSubdivisions" value="10" min="5" max="20" step="1" />
                         <small><strong>Impact:</strong> Number of subdivisions per block (default: 10)</small>
                     </div>
-                    </div>
                 </div>
 
-                <button type="button" class="process-btn" id="processBlockBtn" disabled aria-label="Process block detection">
+                <button type="button" class="process-btn" id="processBlockBtn" disabled>
                     🚀 Process Block Detection
                 </button>
-                <div class="action-buttons" style="display: none;" id="blockActions">
-                    <button type="button" class="download-btn" id="exportBlockPdfBtn" style="background: #6861CE;" aria-label="Export block detection to PDF">
-                        <span class="btn-spinner"></span>
-                        <span class="btn-text">📄 Export PDF Report</span>
-                    </button>
-                    <button type="button" class="reset-btn" onclick="resetAnalysis()" aria-label="Reset analysis">🔄 Reset</button>
-                </div>
             </div>
 
             <!-- Loading Section -->
@@ -962,18 +683,14 @@
 
                 <div class="stats-section">
                     <h3>📈 Block Statistics</h3>
-                    <div id="blockDetectionInfo" style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
+                    <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
                         <strong>📖 Block Detection Info:</strong>
                         <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
-                            <li id="blockDetectedInfo"><strong>Detected:</strong> Blocks 2 and 4 are auto-detected from the image</li>
-                            <li id="blockCalculatedInfo"><strong>Calculated:</strong> Blocks 1 and 3 positions are calculated based on detected blocks spacing</li>
+                            <li><strong>Detected:</strong> Blocks 2 and 4 are auto-detected from the image</li>
+                            <li><strong>Calculated:</strong> Blocks 1 and 3 positions are calculated based on detected blocks spacing</li>
                             <li><strong>Mean Value:</strong> Average pixel intensity (16-bit: 0-65535)</li>
                             <li><strong>Rectangularity:</strong> How rectangular the shape is (0.0-1.0). 1.0 = perfect rectangle</li>
                         </ul>
-                    </div>
-                    <div id="blockWarning" style="display: none; background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
-                        <strong>⚠️ Warning:</strong>
-                        <p id="blockWarningText" style="margin: 10px 0 0 0; line-height: 1.6;"></p>
                     </div>
                     <div id="blockStatsTable"></div>
                 </div>
@@ -1017,16 +734,16 @@
         </div>
 
         <footer>
-            <p>&copy; 2025 Image Analysis Tool | Circle & Block Detection | Atlantis Dashboard Theme</p>
+            <p>&copy; 2025 Image Analysis Tool | Circle & Block Detection | Powered by PyScript & OpenCV</p>
         </footer>
     </div>
 
     <!-- PyScript Configuration -->
     <py-config>
-        packages = ["numpy", "pillow", "opencv-python", "matplotlib", "fpdf2"]
+        packages = ["numpy", "pillow", "opencv-python", "matplotlib"]
         
         [[fetch]]
-        files = ["./processor.py", "./pdf_exporter.py"]
+        files = ["./processor.py"]
     </py-config>
 
     <!-- PyScript Main Script -->
@@ -1068,22 +785,11 @@
             analyze_subdivision_histograms,
             compare_blocks_1_vs_3
         )
-        
-        # Import PDF exporter
-        import pdf_exporter
-        from pdf_exporter import (
-            generate_circle_detection_pdf,
-            generate_block_detection_pdf
-        )
 
         # Global variables
         uploaded_file_data = None
         uploaded_filename = None
         current_mode = 'circle'  # 'circle' or 'block'
-        
-        # Store results for PDF export
-        circle_results = {}
-        block_results = {}
 
         def show_message(message, is_error=False):
             """Show success or error message"""
@@ -1193,9 +899,6 @@
                 # Show preview
                 show_image_preview(array_buffer)
                 
-                # Show clear file button
-                document.getElementById('fileActions').style.display = 'flex'
-                
                 show_message(f"File '{file.name}' loaded successfully! Ready to process.", False)
             
             reader.onload = create_proxy(on_load)
@@ -1203,7 +906,7 @@
 
         async def process_circle_image(event):
             """Process the uploaded image for circle detection"""
-            global uploaded_file_data, uploaded_filename, circle_results
+            global uploaded_file_data, uploaded_filename
             
             if uploaded_file_data is None:
                 show_message("Please upload a file first!", True)
@@ -1244,19 +947,10 @@
                     document.getElementById('processBtn').disabled = False
                     return
                 
-                # Store results for PDF export
-                circle_results['result'] = result
-                circle_results['params'] = params
-                circle_results['filename'] = uploaded_filename
-                
                 # Display results
                 display_circle_results(result, params)
                 
                 # Process grid if we have enough circles
-                grid_result = None
-                histogram_result = None
-                diagonal_result = None
-                
                 if result['count'] >= 2:
                     loading_msg.textContent = 'Analyzing grid positions...'
                     await asyncio.sleep(0.05)
@@ -1264,7 +958,6 @@
                     grid_result = detect_grid_from_diagonal(file_bytes, result, params['grid_cols'])
                     if grid_result:
                         display_grid_results(grid_result)
-                        circle_results['grid_result'] = grid_result
                         
                         loading_msg.textContent = 'Generating histogram analysis...'
                         await asyncio.sleep(0.05)
@@ -1272,7 +965,6 @@
                         histogram_result = analyze_grid_histograms(file_bytes, grid_result)
                         if histogram_result:
                             display_histogram_results(histogram_result)
-                            circle_results['histogram_result'] = histogram_result
                         
                         loading_msg.textContent = 'Comparing diagonal statistics...'
                         await asyncio.sleep(0.05)
@@ -1280,14 +972,10 @@
                         diagonal_result = compare_diagonals(file_bytes, grid_result)
                         if diagonal_result:
                             display_diagonal_results(diagonal_result)
-                            circle_results['diagonal_result'] = diagonal_result
                 
                 document.getElementById('loadingSection').classList.remove('active')
                 document.getElementById('resultsSection').classList.add('active')
                 document.getElementById('processBtn').disabled = False
-                
-                # Show action buttons
-                document.getElementById('circleActions').style.display = 'flex'
                 
                 # Scroll to results
                 results_element = document.getElementById('resultsSection')
@@ -1304,7 +992,7 @@
         async def process_block_image(event):
             """Process the uploaded image for block detection"""
             from js import window
-            global uploaded_file_data, uploaded_filename, block_results
+            global uploaded_file_data, uploaded_filename
             
             if uploaded_file_data is None:
                 show_message("Please upload a file first!", True)
@@ -1347,20 +1035,11 @@
                     document.getElementById('processBlockBtn').disabled = False
                     return
                 
-                # Store results for PDF export
-                block_results['result'] = result
-                block_results['params'] = params
-                block_results['filename'] = uploaded_filename
-                
                 # Display results
                 console.log("Displaying block results...")
                 display_block_results(result, params)
                 
                 # Process subdivisions if we have blocks
-                histogram_result = None
-                subdivision_result = None
-                comparison_result = None
-                
                 if 'all_blocks' in result and len(result['all_blocks']) >= 4:
                     # Generate histograms first
                     console.log("Generating block histograms...")
@@ -1371,7 +1050,6 @@
                     if histogram_result:
                         console.log("Displaying histogram results...")
                         display_block_histograms(histogram_result)
-                        block_results['histogram_result'] = histogram_result
                     
                     console.log("Processing subdivisions...")
                     loading_msg.textContent = 'Creating block subdivisions...'
@@ -1381,7 +1059,6 @@
                     if subdivision_result:
                         console.log("Displaying subdivision results...")
                         display_subdivision_results(subdivision_result)
-                        block_results['subdivision_result'] = subdivision_result
                         
                         # Generate subdivision histograms for all 4 blocks
                         console.log("Generating subdivision histograms...")
@@ -1401,23 +1078,22 @@
                         if comparison_result:
                             console.log("Displaying comparison results...")
                             display_block_comparison_results(comparison_result)
-                            block_results['comparison_result'] = comparison_result
                 else:
                     console.log("Not enough blocks for subdivision. Need 4, got:", result.get('all_blocks', []))
                 
                 console.log("Showing results section...")
                 document.getElementById('loadingSection').classList.remove('active')
                 
-                block_results_section = document.getElementById('blockResultsSection')
-                console.log("blockResultsSection element:", block_results_section)
+                block_results = document.getElementById('blockResultsSection')
+                console.log("blockResultsSection element:", block_results)
                 
                 # Remove any existing display style first
-                block_results_section.style.removeProperty('display')
+                block_results.style.removeProperty('display')
                 
                 # Add active class (should trigger display: block !important)
-                block_results_section.classList.add('active')
+                block_results.classList.add('active')
                 
-                console.log("Classes after add:", block_results_section.className)
+                console.log("Classes after add:", block_results.className)
                 
                 document.getElementById('processBlockBtn').disabled = False
                 
@@ -1426,14 +1102,11 @@
                 
                 # Get element position and scroll to it
                 console.log("Scrolling to results...")
-                rect = block_results_section.getBoundingClientRect()
+                rect = block_results.getBoundingClientRect()
                 scroll_y = window.pageYOffset + rect.top - 100
                 console.log(f"Scrolling to Y position: {scroll_y}")
                 console.log(f"Element rect: top={rect.top}, height={rect.height}")
                 window.scrollTo({'top': scroll_y, 'behavior': 'smooth'})
-                
-                # Show action buttons
-                document.getElementById('blockActions').style.display = 'flex'
                 
                 block_count = len(result.get('all_blocks', []))
                 show_message(f"Block detection complete! Found {block_count} total blocks ({result['count']} detected).", False)
@@ -1512,35 +1185,6 @@
                 if 'mask_image' in result:
                     mask_div.innerHTML = f'<img src="data:image/png;base64,{result["mask_image"]}" alt="Threshold Mask" />'
                     console.log("Mask image set")
-                
-                # Update detection info dynamically
-                detected_ids = result.get('detected_block_ids', [2, 4])
-                calculated_ids = result.get('calculated_block_ids', [1, 3])
-                
-                detected_str = ', '.join([f'Block {i}' for i in detected_ids]) if detected_ids else 'None'
-                calculated_str = ', '.join([f'Block {i}' for i in calculated_ids]) if calculated_ids else 'None'
-                
-                detected_info = document.getElementById('blockDetectedInfo')
-                calculated_info = document.getElementById('blockCalculatedInfo')
-                
-                if detected_info:
-                    detected_info.innerHTML = f'<strong>Detected:</strong> {detected_str} {"are" if len(detected_ids) != 1 else "is"} auto-detected from the image'
-                if calculated_info:
-                    calculated_info.innerHTML = f'<strong>Calculated:</strong> {calculated_str} {"positions are" if len(calculated_ids) != 1 else "position is"} calculated based on detected blocks spacing'
-                
-                # Display warning if present
-                if 'warning' in result:
-                    warning_div = document.getElementById('blockWarning')
-                    warning_text = document.getElementById('blockWarningText')
-                    if warning_div and warning_text:
-                        warning_text.textContent = result['warning']
-                        warning_div.style.display = 'block'
-                        console.log("Warning displayed:", result['warning'])
-                else:
-                    # Hide warning if no warning
-                    warning_div = document.getElementById('blockWarning')
-                    if warning_div:
-                        warning_div.style.display = 'none'
                 
                 stats_div = document.getElementById('blockStatsTable')
                 console.log("blockStatsTable element:", stats_div)
@@ -1745,176 +1389,10 @@
             '''
             summary_div.innerHTML = summary_html
 
-        async def export_circle_pdf(event):
-            """Export circle detection results to PDF"""
-            global circle_results, uploaded_filename
-            
-            console.log('export_circle_pdf: circle_results =', circle_results)
-            if not circle_results or 'result' not in circle_results:
-                show_message("No circle detection results to export. Please process an image first.", True)
-                return
-            
-            # Get button and add loading state
-            btn = document.getElementById('exportCirclePdfBtn')
-            btn.classList.add('loading')
-            btn.disabled = True
-            btn_text = btn.querySelector('.btn-text')
-            original_text = btn_text.textContent
-            btn_text.textContent = 'Generating PDF...'
-            
-            try:
-                show_message("Generating PDF report... Please wait.", False)
-                await asyncio.sleep(0.1)
-                
-                # Convert JsProxy objects to Python dicts for PDF generation
-                def to_py_safe(obj):
-                    """Safely convert JsProxy to Python, or return as-is if already Python"""
-                    if obj is None:
-                        return None
-                    if hasattr(obj, 'to_py'):
-                        return obj.to_py()
-                    return obj
-                
-                result = to_py_safe(circle_results.get('result'))
-                params = to_py_safe(circle_results.get('params'))
-                grid_result = to_py_safe(circle_results.get('grid_result'))
-                histogram_result = to_py_safe(circle_results.get('histogram_result'))
-                diagonal_result = to_py_safe(circle_results.get('diagonal_result'))
-                
-                pdf_result = generate_circle_detection_pdf(
-                    circle_results.get('filename', 'unknown.tif'),
-                    result,
-                    params,
-                    grid_result,
-                    histogram_result,
-                    diagonal_result
-                )
-                
-                if 'error' in pdf_result:
-                    show_message(f"Error generating PDF: {pdf_result['error']}", True)
-                    return
-                if not pdf_result.get('pdf_base64'):
-                    console.error('PDF base64 is empty!')
-                    show_message("PDF generation failed: No PDF data returned.", True)
-                    return
-                console.log('Calling download_pdf with filename:', pdf_result['filename'])
-                download_pdf(pdf_result['pdf_base64'], pdf_result['filename'])
-                console.log('download_pdf called successfully')
-                show_message("PDF report exported successfully!", False)
-                
-            except Exception as e:
-                console.error(f"Error exporting PDF: {str(e)}")
-                import traceback
-                console.error(traceback.format_exc())
-                show_message(f"Error exporting PDF: {str(e)}", True)
-            
-            finally:
-                # Reset button state
-                btn.classList.remove('loading')
-                btn.disabled = False
-                btn_text.textContent = original_text
-
-        async def export_block_pdf(event):
-            """Export block detection results to PDF"""
-            global block_results, uploaded_filename
-            
-            if not block_results or 'result' not in block_results:
-                show_message("No block detection results to export. Please process an image first.", True)
-                return
-            
-            # Get button and add loading state
-            btn = document.getElementById('exportBlockPdfBtn')
-            btn.classList.add('loading')
-            btn.disabled = True
-            btn_text = btn.querySelector('.btn-text')
-            original_text = btn_text.textContent
-            btn_text.textContent = 'Generating PDF...'
-            
-            try:
-                show_message("Generating PDF report... Please wait.", False)
-                await asyncio.sleep(0.1)
-                
-                # Convert JsProxy objects to Python dicts for PDF generation
-                def to_py_safe(obj):
-                    """Safely convert JsProxy to Python, or return as-is if already Python"""
-                    if obj is None:
-                        return None
-                    if hasattr(obj, 'to_py'):
-                        return obj.to_py()
-                    return obj
-                
-                result = to_py_safe(block_results.get('result'))
-                params = to_py_safe(block_results.get('params'))
-                histogram_result = to_py_safe(block_results.get('histogram_result'))
-                subdivision_result = to_py_safe(block_results.get('subdivision_result'))
-                comparison_result = to_py_safe(block_results.get('comparison_result'))
-                
-                pdf_result = generate_block_detection_pdf(
-                    block_results.get('filename', 'unknown.tif'),
-                    result,
-                    params,
-                    histogram_result,
-                    subdivision_result,
-                    comparison_result
-                )
-                
-                if 'error' in pdf_result:
-                    show_message(f"Error generating PDF: {pdf_result['error']}", True)
-                    return
-                if not pdf_result.get('pdf_base64'):
-                    console.error('PDF base64 is empty!')
-                    show_message("PDF generation failed: No PDF data returned.", True)
-                    return
-                console.log('Calling download_pdf with filename:', pdf_result['filename'])
-                download_pdf(pdf_result['pdf_base64'], pdf_result['filename'])
-                console.log('download_pdf called successfully')
-                show_message("PDF report exported successfully!", False)
-                
-            except Exception as e:
-                console.error(f"Error exporting PDF: {str(e)}")
-                import traceback
-                console.error(traceback.format_exc())
-                show_message(f"Error exporting PDF: {str(e)}", True)
-            
-            finally:
-                # Reset button state
-                btn.classList.remove('loading')
-                btn.disabled = False
-                btn_text.textContent = original_text
-
-        def download_pdf(pdf_base64, filename):
-            """Download PDF file from base64 data"""
-            from js import Uint8Array, Blob, URL, document as js_document
-            
-            # Decode base64 to bytes
-            pdf_bytes = base64.b64decode(pdf_base64)
-            
-            # Create Uint8Array from bytes
-            js_array = Uint8Array.new(len(pdf_bytes))
-            for i, byte in enumerate(pdf_bytes):
-                js_array[i] = byte
-            
-            # Create Blob and download link
-            blob = Blob.new([js_array], {'type': 'application/pdf'})
-            url = URL.createObjectURL(blob)
-            
-            # Create download link and click it
-            link = js_document.createElement('a')
-            link.href = url
-            link.download = filename
-            js_document.body.appendChild(link)
-            link.click()
-            js_document.body.removeChild(link)
-            
-            # Clean up
-            URL.revokeObjectURL(url)
-
         # Event listeners
         document.getElementById('fileInput').addEventListener('change', create_proxy(handle_file_upload))
         document.getElementById('processBtn').addEventListener('click', create_proxy(process_circle_image))
         document.getElementById('processBlockBtn').addEventListener('click', create_proxy(process_block_image))
-        document.getElementById('exportCirclePdfBtn').addEventListener('click', create_proxy(export_circle_pdf))
-        document.getElementById('exportBlockPdfBtn').addEventListener('click', create_proxy(export_block_pdf))
 
         console.log("PyScript initialized successfully!")
         
@@ -1928,17 +1406,8 @@
             console.log('Initialization complete - interface ready')
     </script>
 
-    <!-- JavaScript for mode switching and UX features -->
+    <!-- JavaScript for mode switching -->
     <script>
-        // DOM element cache for performance
-        const cachedElements = {};
-        function getElement(id) {
-            if (!cachedElements[id]) {
-                cachedElements[id] = document.getElementById(id);
-            }
-            return cachedElements[id];
-        }
-        
         function switchMode(mode) {
             // Update button states
             document.getElementById('circleModeBtn').classList.toggle('active', mode === 'circle');
@@ -1951,109 +1420,7 @@
             // Hide results
             document.getElementById('resultsSection').classList.remove('active');
             document.getElementById('blockResultsSection').classList.remove('active');
-            
-            // Hide action buttons
-            document.getElementById('circleActions').style.display = 'none';
-            document.getElementById('blockActions').style.display = 'none';
         }
-
-        function toggleHelp() {
-            const content = getElement('helpContent');
-            const icon = getElement('helpIcon');
-            const toggle = content.previousElementSibling;
-            
-            content.classList.toggle('expanded');
-            const isExpanded = content.classList.contains('expanded');
-            toggle.setAttribute('aria-expanded', isExpanded);
-            icon.textContent = isExpanded ? '✖️' : 'ℹ️';
-        }
-
-        function toggleAdvanced(mode) {
-            const id = mode + 'Advanced';
-            const element = getElement(id);
-            const button = event.target;
-            
-            element.classList.toggle('expanded');
-            const isExpanded = element.classList.contains('expanded');
-            button.setAttribute('aria-expanded', isExpanded);
-            button.textContent = isExpanded ? '▲ Hide Advanced Parameters' : '⚙️ Advanced Parameters (Optional)';
-        }
-
-        function resetUpload() {
-            getElement('fileInput').value = '';
-            getElement('fileInfo').innerHTML = 'No file selected. <strong>Drag and drop</strong> a TIFF file here or click to browse.';
-            getElement('previewSection').classList.remove('active');
-            getElement('fileActions').style.display = 'none';
-            getElement('processBtn').disabled = true;
-            getElement('processBlockBtn').disabled = true;
-            
-            // Clear results
-            getElement('resultsSection').classList.remove('active');
-            getElement('blockResultsSection').classList.remove('active');
-            getElement('circleActions').style.display = 'none';
-            getElement('blockActions').style.display = 'none';
-        }
-
-        function resetAnalysis() {
-            getElement('resultsSection').classList.remove('active');
-            getElement('blockResultsSection').classList.remove('active');
-            getElement('circleActions').style.display = 'none';
-            getElement('blockActions').style.display = 'none';
-            
-            // Scroll back to top
-            getElement('uploadSection').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Drag and drop functionality
-        let isDragDropInitialized = false;
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            if (isDragDropInitialized) return;
-            isDragDropInitialized = true;
-            
-            const uploadSection = document.getElementById('uploadSection');
-            
-            // Simplified drag and drop
-            uploadSection.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadSection.classList.add('dragover');
-            }, false);
-            
-            uploadSection.addEventListener('dragleave', function() {
-                uploadSection.classList.remove('dragover');
-            }, false);
-
-            uploadSection.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadSection.classList.remove('dragover');
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    const fileInput = document.getElementById('fileInput');
-                    fileInput.files = files;
-                    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            }, false);
-
-            // Minimal validation on blur only
-            document.body.addEventListener('blur', function(e) {
-                if (e.target.type === 'number') {
-                    const val = parseFloat(e.target.value);
-                    const min = parseFloat(e.target.min);
-                    const max = parseFloat(e.target.max);
-                    const errEl = getElement(e.target.id + 'Error');
-                    
-                    if (errEl && (isNaN(val) || val < min || val > max)) {
-                        e.target.classList.add('invalid');
-                        errEl.textContent = `Value must be between ${min} and ${max}`;
-                        errEl.classList.add('active');
-                    } else if (errEl) {
-                        e.target.classList.remove('invalid');
-                        errEl.classList.remove('active');
-                    }
-                }
-            }, true);
-        });
     </script>
 </body>
 </html>

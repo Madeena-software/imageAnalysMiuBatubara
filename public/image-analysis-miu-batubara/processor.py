@@ -10,9 +10,6 @@ import io
 import base64
 from PIL import Image
 
-# Import PDF exporter functions
-from pdf_exporter import generate_circle_detection_pdf, generate_block_detection_pdf
-
 # ============================================================
 # DEBUG FLAG - Set to False to disable all console logging
 # ============================================================
@@ -966,353 +963,115 @@ def process_blocks(file_bytes, params):
         # Sort by X position (left to right)
         valid_blocks.sort(key=lambda c: c["center"][0])
 
-        if DEBUG:
-            print(f"\n=== Block Position Analysis ===")
-            print(f"Detected {len(valid_blocks)} blocks")
-            for i, blk in enumerate(valid_blocks):
-                print(f"  Block {i}: X={blk['center'][0]}")
-
-        # Analyze spacing between detected blocks to identify pattern
+        # Calculate positions for blocks 1 and 3 if we have at least 2 detected blocks
         all_blocks = []
-        orientation_warning = None
-        detected_block_ids = []
-        calculated_block_ids = []
-
         if len(valid_blocks) >= 2:
-            # Calculate spacings between consecutive blocks
-            spacings = []
-            for i in range(len(valid_blocks) - 1):
-                spacing = (
-                    valid_blocks[i + 1]["center"][0] - valid_blocks[i]["center"][0]
-                )
-                spacings.append(spacing)
+            block_2 = valid_blocks[0]
+            block_4 = valid_blocks[1]
 
-            if DEBUG:
-                print(f"Spacings: {spacings}")
+            x2 = block_2["center"][0]
+            x4 = block_4["center"][0]
 
-            # Determine if we have adjacent blocks or non-adjacent blocks
-            # Adjacent blocks (like 1-2-3 or 2-3-4) will have uniform small spacing
-            # Non-adjacent blocks (like 1-3 or 2-4) will have larger spacing
+            # Calculate spacing
+            x3_temp = (x2 + x4) // 2
+            dx = abs(((x4 - x3_temp) + (x3_temp - x2)) / 2)
 
-            if len(valid_blocks) >= 3:
-                # If we have 3+ blocks, at least 2 must be adjacent
-                # Find the consistent spacing from adjacent blocks
-                avg_spacing = np.mean(spacings)
+            x3 = x3_temp
+            x1 = x2 - dx
 
-                if DEBUG:
-                    print(f"Average spacing: {avg_spacing:.1f}px")
+            # Create block 1 (calculated)
+            all_blocks.append(
+                {
+                    "id": 1,
+                    "center": (int(x1), block_2["center"][1]),
+                    "box": [
+                        [
+                            int(x1 - block_2["width"] / 2),
+                            int(block_2["center"][1] - block_2["height"] / 2),
+                        ],
+                        [
+                            int(x1 + block_2["width"] / 2),
+                            int(block_2["center"][1] - block_2["height"] / 2),
+                        ],
+                        [
+                            int(x1 + block_2["width"] / 2),
+                            int(block_2["center"][1] + block_2["height"] / 2),
+                        ],
+                        [
+                            int(x1 - block_2["width"] / 2),
+                            int(block_2["center"][1] + block_2["height"] / 2),
+                        ],
+                    ],
+                    "width": block_2["width"],
+                    "height": block_2["height"],
+                    "mean_value": 0.0,
+                    "rectangularity": block_2.get("rectangularity", 0.0),
+                    "classification": "Calculated",
+                    "type": "calculated",
+                }
+            )
 
-                # Use average spacing to calculate all 4 positions
-                # Assume first detected block position
-                first_x = valid_blocks[0]["center"][0]
+            # Add block 2 (detected)
+            all_blocks.append(
+                {
+                    "id": 2,
+                    "center": block_2["center"],
+                    "box": block_2["box"],
+                    "width": block_2["width"],
+                    "height": block_2["height"],
+                    "mean_value": 0.0,
+                    "rectangularity": block_2.get("rectangularity", 0.0),
+                    "classification": "Detected",
+                    "type": "detected",
+                }
+            )
 
-                # Calculate all 4 positions with uniform spacing
-                calculated_positions = [
-                    first_x,
-                    first_x + avg_spacing,
-                    first_x + 2 * avg_spacing,
-                    first_x + 3 * avg_spacing,
-                ]
+            # Create block 3 (calculated)
+            all_blocks.append(
+                {
+                    "id": 3,
+                    "center": (int(x3), block_2["center"][1]),
+                    "box": [
+                        [
+                            int(x3 - block_2["width"] / 2),
+                            int(block_2["center"][1] - block_2["height"] / 2),
+                        ],
+                        [
+                            int(x3 + block_2["width"] / 2),
+                            int(block_2["center"][1] - block_2["height"] / 2),
+                        ],
+                        [
+                            int(x3 + block_2["width"] / 2),
+                            int(block_2["center"][1] + block_2["height"] / 2),
+                        ],
+                        [
+                            int(x3 - block_2["width"] / 2),
+                            int(block_2["center"][1] + block_2["height"] / 2),
+                        ],
+                    ],
+                    "width": block_2["width"],
+                    "height": block_2["height"],
+                    "mean_value": 0.0,
+                    "rectangularity": block_2.get("rectangularity", 0.0),
+                    "classification": "Calculated",
+                    "type": "calculated",
+                }
+            )
 
-                if DEBUG:
-                    print(f"Calculated 4 positions: {calculated_positions}")
-
-                # Map detected blocks to their closest calculated position
-                detected_ids = []
-                for blk in valid_blocks:
-                    # Find which position (1-4) this block belongs to
-                    distances = [
-                        abs(blk["center"][0] - pos) for pos in calculated_positions
-                    ]
-                    block_id = distances.index(min(distances)) + 1
-                    detected_ids.append(block_id)
-                    blk["assigned_id"] = block_id
-
-                if DEBUG:
-                    print(f"Detected block IDs: {detected_ids}")
-
-                # Store detected block IDs for info
-                detected_block_ids = detected_ids.copy()
-                calculated_block_ids = [i for i in range(1, 5) if i not in detected_ids]
-
-                # Create all 4 blocks
-                reference_block = valid_blocks[0]
-                y_center = reference_block["center"][1]
-
-                for block_id in range(1, 5):
-                    x_pos = calculated_positions[block_id - 1]
-
-                    # Check if this block was detected
-                    detected_block = None
-                    for blk in valid_blocks:
-                        if blk.get("assigned_id") == block_id:
-                            detected_block = blk
-                            break
-
-                    if detected_block:
-                        # Use detected block data
-                        all_blocks.append(
-                            {
-                                "id": block_id,
-                                "center": detected_block["center"],
-                                "box": detected_block["box"],
-                                "width": detected_block["width"],
-                                "height": detected_block["height"],
-                                "mean_value": 0.0,
-                                "rectangularity": detected_block.get(
-                                    "rectangularity", 0.0
-                                ),
-                                "classification": "Detected",
-                                "type": "detected",
-                            }
-                        )
-                    else:
-                        # Calculate block position
-                        all_blocks.append(
-                            {
-                                "id": block_id,
-                                "center": (int(x_pos), int(y_center)),
-                                "box": [
-                                    [
-                                        int(x_pos - reference_block["width"] / 2),
-                                        int(y_center - reference_block["height"] / 2),
-                                    ],
-                                    [
-                                        int(x_pos + reference_block["width"] / 2),
-                                        int(y_center - reference_block["height"] / 2),
-                                    ],
-                                    [
-                                        int(x_pos + reference_block["width"] / 2),
-                                        int(y_center + reference_block["height"] / 2),
-                                    ],
-                                    [
-                                        int(x_pos - reference_block["width"] / 2),
-                                        int(y_center + reference_block["height"] / 2),
-                                    ],
-                                ],
-                                "width": reference_block["width"],
-                                "height": reference_block["height"],
-                                "mean_value": 0.0,
-                                "rectangularity": reference_block.get(
-                                    "rectangularity", 0.0
-                                ),
-                                "classification": "Calculated",
-                                "type": "calculated",
-                            }
-                        )
-
-            elif len(valid_blocks) == 2:
-                # Only 2 blocks detected
-                # Could be: 1-3 or 2-4 (most common patterns)
-                spacing = spacings[0]
-
-                if DEBUG:
-                    print(f"Two blocks with spacing: {spacing:.1f}px")
-
-                # Determine pattern by analyzing vertical intensity gradient
-                # Pattern 2-4: Empty blocks (below threshold) - darker towards bottom
-                # Pattern 1-3: Filled blocks (above threshold) - lighter towards bottom
-                block_left = valid_blocks[0]
-                block_right = valid_blocks[1]
-
-                # Sample intensity gradient below the blocks
-                y_center = block_left["center"][1]
-                x_left = block_left["center"][0]
-                x_right = block_right["center"][0]
-
-                # Sample at 3 vertical positions: top, middle, bottom of block
-                block_height = int(block_left["height"])
-                y_top = int(y_center - block_height * 0.3)
-                y_mid = int(y_center)
-                y_bottom = int(y_center + block_height * 0.3)
-
-                # Get mean intensity at top, middle, bottom for both blocks
-                def get_intensity_at_point(img, x, y, radius=20):
-                    y_min = max(0, y - radius)
-                    y_max = min(img.shape[0], y + radius)
-                    x_min = max(0, x - radius)
-                    x_max = min(img.shape[1], x + radius)
-                    region = img[y_min:y_max, x_min:x_max]
-                    return np.mean(region) if region.size > 0 else 0
-
-                # Check gradient for left block
-                intensity_left_top = get_intensity_at_point(img_16bit, x_left, y_top)
-                intensity_left_bottom = get_intensity_at_point(
-                    img_16bit, x_left, y_bottom
-                )
-
-                # Check gradient for right block
-                intensity_right_top = get_intensity_at_point(img_16bit, x_right, y_top)
-                intensity_right_bottom = get_intensity_at_point(
-                    img_16bit, x_right, y_bottom
-                )
-
-                # Calculate gradient (positive = getting brighter towards bottom)
-                gradient_left = intensity_left_bottom - intensity_left_top
-                gradient_right = intensity_right_bottom - intensity_right_top
-                avg_gradient = (gradient_left + gradient_right) / 2
-
-                if DEBUG:
-                    print(f"\n=== Vertical Intensity Gradient Analysis ===")
-                    print(
-                        f"Left block - Top: {intensity_left_top:.1f}, Bottom: {intensity_left_bottom:.1f}, Gradient: {gradient_left:.1f}"
-                    )
-                    print(
-                        f"Right block - Top: {intensity_right_top:.1f}, Bottom: {intensity_right_bottom:.1f}, Gradient: {gradient_right:.1f}"
-                    )
-                    print(f"Average gradient: {avg_gradient:.1f}")
-
-                # Determine pattern based on gradient
-                # Negative gradient (darker towards bottom) = Pattern 2-4 (empty blocks)
-                # Positive gradient (lighter towards bottom) = Pattern 1-3 (filled blocks)
-                is_pattern_2_4 = avg_gradient < 0
-
-                if DEBUG:
-                    if is_pattern_2_4:
-                        print(
-                            "✓ Detected pattern: 2-4 (empty blocks, darker towards bottom)"
-                        )
-                    else:
-                        print(
-                            "⚠ Detected pattern: 1-3 (filled blocks, lighter towards bottom)"
-                        )
-                        print(
-                            "WARNING: Image orientation not standard. Consider rotating image 180°."
-                        )
-
-                # The spacing tells us the pattern:
-                # - If spacing ~1x unit: adjacent blocks (1-2, 2-3, or 3-4)
-                # - If spacing ~2x unit: one gap between (1-3 or 2-4)
-                # - If spacing ~3x unit: two gaps between (1-4)
-
-                # We need to determine if it's 1-3 or 2-4 pattern
-                # Strategy: calculate the single unit spacing, then generate all 4 positions
-                # and assign the detected blocks to their most likely positions
-
-                block_left = valid_blocks[0]
-                block_right = valid_blocks[1]
-                y_center = block_left["center"][1]
-
-                # Estimate unit spacing (assuming 2x spacing between detected blocks for 1-3 or 2-4)
-                # The detected spacing should be approximately 2x the unit spacing
-                unit_spacing = spacing / 2
-
-                if DEBUG:
-                    print(f"Estimated unit spacing: {unit_spacing:.1f}px")
-
-                # Pattern 1: Detected blocks are at positions 1 and 3 (filled blocks)
-                positions_pattern_1_3 = [
-                    block_left["center"][0],  # Position 1 (detected)
-                    block_left["center"][0] + unit_spacing,  # Position 2 (calculated)
-                    block_right["center"][0],  # Position 3 (detected)
-                    block_right["center"][0] + unit_spacing,  # Position 4 (calculated)
-                ]
-
-                # Pattern 2: Detected blocks are at positions 2 and 4 (empty blocks)
-                positions_pattern_2_4 = [
-                    block_left["center"][0] - unit_spacing,  # Position 1 (calculated)
-                    block_left["center"][0],  # Position 2 (detected)
-                    block_right["center"][0] - unit_spacing,  # Position 3 (calculated)
-                    block_right["center"][0],  # Position 4 (detected)
-                ]
-
-                # Choose pattern based on gradient analysis and boundary check
-                if is_pattern_2_4 and positions_pattern_2_4[0] >= 0:
-                    # Standard case: Pattern 2-4 (SOP compliant)
-                    chosen_positions = positions_pattern_2_4
-                    pattern_name = "2-4"
-                    detected_positions = [1, 3]  # Positions 2 and 4 are detected
-                elif not is_pattern_2_4:
-                    # Non-standard case: Pattern 1-3 (image needs rotation)
-                    chosen_positions = positions_pattern_1_3
-                    pattern_name = "1-3"
-                    detected_positions = [0, 2]  # Positions 1 and 3 are detected
-                else:
-                    # Fallback to 1-3 if 2-4 position 1 is out of bounds
-                    chosen_positions = positions_pattern_1_3
-                    pattern_name = "1-3"
-                    detected_positions = [0, 2]
-
-                if DEBUG:
-                    print(f"\n=== Pattern Selection ===")
-                    print(f"Chosen pattern: {pattern_name}")
-                    print(f"All 4 positions: {chosen_positions}")
-                    if pattern_name == "1-3":
-                        print("⚠ WARNING: Non-standard orientation detected!")
-                        print(
-                            "⚠ Recommendation: Rotate image 180° for consistent 2-4 pattern."
-                        )
-                        print(
-                            "⚠ Processing will continue, but this is NOT best practice."
-                        )
-
-                # Create all 4 blocks using chosen pattern
-                all_blocks = []
-                if pattern_name == "1-3":
-                    orientation_warning = "⚠ Non-standard image orientation detected (Pattern 1-3). Recommend rotating image 180° for standard 2-4 pattern. Processing will continue, but this is NOT best practice."
-                    detected_block_ids = [1, 3]
-                    calculated_block_ids = [2, 4]
-                else:
-                    detected_block_ids = [2, 4]
-                    calculated_block_ids = [1, 3]
-
-                for i in range(4):
-                    block_id = i + 1
-                    x_pos = chosen_positions[i]
-
-                    # Determine if this position was detected or calculated
-                    if i in detected_positions:
-                        # Use detected block data
-                        source_block = (
-                            block_left if i == detected_positions[0] else block_right
-                        )
-                        all_blocks.append(
-                            {
-                                "id": block_id,
-                                "center": source_block["center"],
-                                "box": source_block["box"],
-                                "width": source_block["width"],
-                                "height": source_block["height"],
-                                "mean_value": 0.0,
-                                "rectangularity": source_block.get(
-                                    "rectangularity", 0.0
-                                ),
-                                "classification": "Detected",
-                                "type": "detected",
-                            }
-                        )
-                    else:
-                        # Calculate block position
-                        all_blocks.append(
-                            {
-                                "id": block_id,
-                                "center": (int(x_pos), int(y_center)),
-                                "box": [
-                                    [
-                                        int(x_pos - block_left["width"] / 2),
-                                        int(y_center - block_left["height"] / 2),
-                                    ],
-                                    [
-                                        int(x_pos + block_left["width"] / 2),
-                                        int(y_center - block_left["height"] / 2),
-                                    ],
-                                    [
-                                        int(x_pos + block_left["width"] / 2),
-                                        int(y_center + block_left["height"] / 2),
-                                    ],
-                                    [
-                                        int(x_pos - block_left["width"] / 2),
-                                        int(y_center + block_left["height"] / 2),
-                                    ],
-                                ],
-                                "width": block_left["width"],
-                                "height": block_left["height"],
-                                "mean_value": 0.0,
-                                "rectangularity": block_left.get("rectangularity", 0.0),
-                                "classification": "Calculated",
-                                "type": "calculated",
-                            }
-                        )
+            # Add block 4 (detected)
+            all_blocks.append(
+                {
+                    "id": 4,
+                    "center": block_4["center"],
+                    "box": block_4["box"],
+                    "width": block_4["width"],
+                    "height": block_4["height"],
+                    "mean_value": 0.0,
+                    "rectangularity": block_4.get("rectangularity", 0.0),
+                    "classification": "Detected",
+                    "type": "detected",
+                }
+            )
 
         # Calculate mean values for all blocks
         for block in all_blocks:
@@ -1379,23 +1138,13 @@ def process_blocks(file_bytes, params):
             }
             results.append(result_item)
 
-        result_dict = {
+        return {
             "blocks": results,
             "all_blocks": all_blocks,
             "detection_image": detection_base64,
             "mask_image": mask_base64,
             "count": len(results),
-            "detected_block_ids": detected_block_ids,
-            "calculated_block_ids": calculated_block_ids,
         }
-
-        # Add warning if orientation is non-standard
-        if orientation_warning:
-            result_dict["warning"] = orientation_warning
-            if DEBUG:
-                print(f"\n⚠ {orientation_warning}")
-
-        return result_dict
 
     except Exception as e:
         if DEBUG:
@@ -2051,6 +1800,4 @@ __all__ = [
     "subdivide_blocks",
     "compare_blocks_1_vs_3",
     "numpy_to_base64",
-    "generate_circle_detection_pdf",
-    "generate_block_detection_pdf",
 ]

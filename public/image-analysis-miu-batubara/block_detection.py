@@ -314,7 +314,7 @@ def analyze_block_histograms(file_bytes, all_blocks):
             ax.legend(fontsize=8, loc="upper right")
             ax.grid(True, alpha=0.3)
 
-            stats_text = f"Min: {min_val:.0f}\\nMax: {max_val:.0f}\\nStd: {std_val:.0f}"
+            stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.0f}"
             ax.text(
                 0.02,
                 0.98,
@@ -473,7 +473,7 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
             ax.legend(fontsize=7, loc="upper right")
             ax.grid(True, alpha=0.3)
 
-            stats_text = f"Min: {min_val:.0f}\\nMax: {max_val:.0f}\\nStd: {std_val:.0f}"
+            stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.0f}"
             ax.text(
                 0.02,
                 0.98,

@@ -310,7 +310,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
                     ax.text(
                         0.5,
                         0.5,
-                        f"Position [{row},{col}]\\nNo Data",
+                        f"Position [{row},{col}]\nNo Data",
                         transform=ax.transAxes,
                         ha="center",
                         va="center",
@@ -362,7 +362,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
                 ax.legend(fontsize=7, loc="upper right")
                 ax.grid(True, alpha=0.3)
 
-                stats_text = f"Min: {min_val:.0f}\\nMax: {max_val:.0f}\\nStd: {std_val:.1f}"
+                stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.1f}"
                 ax.text(
                     0.02,
                     0.98,

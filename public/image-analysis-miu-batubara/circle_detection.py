@@ -484,7 +484,7 @@ def visualize_circle_invalid_roi(file_bytes, grid_results):
 
         return {
             "invalid_roi_image": _numpy_to_base64(img_rgb),
-            "hint": "Anti-diagonal AIR ROIs are highlighted in blue. Tune threshold and diameter so each ROI stays inside hole area.",
+            "hint": "Anti-diagonal AIR ROIs are highlighted in red. Tune threshold and diameter so each ROI stays inside hole area.",
         }
     except Exception as e:
         raise ValueError(f"Circle invalid ROI visualization failed: {str(e)}") from e

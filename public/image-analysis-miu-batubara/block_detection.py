@@ -685,7 +685,7 @@ def visualize_block_invalid_roi(file_bytes, subdivisions):
 
         return {
             "invalid_roi_image": _numpy_to_base64(img_rgb),
-            "hint": "Blue=air reference ROI, yellow=shrunken sampling ROI. Tune block threshold so ROIs avoid bright container walls.",
+            "hint": "Red=air reference ROI, yellow=shrunken sampling ROI. Tune block threshold so ROIs avoid bright container walls.",
         }
     except Exception as e:
         raise ValueError(f"Block invalid ROI visualization failed: {str(e)}") from e

@@ -397,19 +397,57 @@
         .attenuation-comparison {
             background: linear-gradient(135deg, #eff6ff 0%, #f8f9ff 100%);
             border: 1px solid #dbe7ff;
-            border-left: 6px solid #667eea;
-            border-radius: 14px;
-            padding: 18px 20px;
-            margin: 16px 0;
+            border-left: 10px solid #667eea;
+            border-radius: 18px;
+            padding: 26px 28px;
+            margin: 22px 0;
             color: #1f2d4d;
-            font-size: 1rem;
-            line-height: 1.7;
+            font-size: 1.08rem;
+            line-height: 1.85;
+            box-shadow: 0 14px 34px rgba(102, 126, 234, 0.14);
+            position: relative;
+            overflow: hidden;
         }
 
         .attenuation-comparison h3 {
-            margin: 0 0 8px 0;
-            color: #333;
-            font-size: 1.1rem;
+            margin: 0 0 16px 0;
+            color: #16213e;
+            font-size: 1.45rem;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+        }
+
+        .attenuation-comparison__item {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .attenuation-comparison__label {
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .attenuation-comparison__value {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #1d4ed8;
+        }
+
+        .attenuation-comparison__delta-row {
+            margin-top: 16px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(102, 126, 234, 0.18);
+        }
+
+        .attenuation-comparison__delta {
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: #7c3aed;
         }
 
         .parameter-summary {
@@ -738,8 +776,8 @@
                         </div>
                         <div class="param-item">
                             <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
-                            <input type="number" id="circleAirCvThreshold" value="0.05" min="0.01" max="0.50" step="0.01" />
-                            <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.05)</small>
+                            <input type="number" id="circleAirCvThreshold" value="0.2" min="0.01" max="1.00" step="0.01" />
+                            <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.2)</small>
                         </div>
                     </div>
                 </details>
@@ -786,8 +824,8 @@
                         </div>
                         <div class="param-item">
                             <label for="blockStepMaxRelDiff">Air Step Max Relative Diff</label>
-                            <input type="number" id="blockStepMaxRelDiff" value="0.20" min="0.05" max="1.00" step="0.01" />
-                            <small><strong>Impact:</strong> Higher allows larger difference between Block 1 vs Block 3 at the bottom (max-thickness) air step (default: 0.20)</small>
+                            <input type="number" id="blockStepMaxRelDiff" value="0.35" min="0.05" max="1.00" step="0.01" />
+                            <small><strong>Impact:</strong> Higher allows larger difference between Block 1 vs Block 3 at the bottom (max-thickness) air step (default: 0.35)</small>
                         </div>
                     </div>
                 </details>
@@ -1116,9 +1154,18 @@
                 return
             container.innerHTML = f'''
             <h3>{summary_payload.get("title", "Attenuation (μ) Comparison")}</h3>
-            <div><strong>{summary_payload.get("left_label", "Sample A")}:</strong> μ = {summary_payload.get("left_mu", 0.0):.5f}</div>
-            <div><strong>{summary_payload.get("right_label", "Sample B")}:</strong> μ = {summary_payload.get("right_mu", 0.0):.5f}</div>
-            <div><strong>Absolute Difference:</strong> Δμ = {summary_payload.get("delta_mu", 0.0):.5f}</div>
+            <div class="attenuation-comparison__item">
+                <span class="attenuation-comparison__label">{summary_payload.get("left_label", "Sample A")}:</span>
+                <span class="attenuation-comparison__value">μ = {summary_payload.get("left_mu", 0.0):.5f}</span>
+            </div>
+            <div class="attenuation-comparison__item">
+                <span class="attenuation-comparison__label">{summary_payload.get("right_label", "Sample B")}:</span>
+                <span class="attenuation-comparison__value">μ = {summary_payload.get("right_mu", 0.0):.5f}</span>
+            </div>
+            <div class="attenuation-comparison__item attenuation-comparison__delta-row">
+                <span class="attenuation-comparison__label">Absolute Difference:</span>
+                <span class="attenuation-comparison__delta">Δμ = {summary_payload.get("delta_mu", 0.0):.5f}</span>
+            </div>
             '''
         current_mode = 'circle'  # 'circle' or 'block'
 
@@ -1719,6 +1766,13 @@
                     return
                     
                 summary = comparison_result['summary']
+                def summary_value(key, fallback=0.0):
+                    value = summary.get(key, fallback)
+                    try:
+                        return float(value)
+                    except Exception:
+                        return float(fallback)
+
                 summary_div = document.getElementById('blockComparisonSummary')
                 
                 summary_html = f'''
@@ -1735,28 +1789,28 @@
                         <tbody>
                             <tr>
                                 <td><strong>Block 1</strong></td>
-                                <td>{summary['block1_mean_avg']:.1f}</td>
-                                <td>{summary['block1_mean_std']:.1f}</td>
+                                <td>{summary_value('block1_mean_avg'):.1f}</td>
+                                <td>{summary_value('block1_mean_std'):.1f}</td>
                             </tr>
                             <tr>
                                 <td><strong>Block 2</strong></td>
-                                <td>{summary['block2_mean_avg']:.1f}</td>
-                                <td>{summary['block2_mean_std']:.1f}</td>
+                                <td>{summary_value('block2_mean_avg'):.1f}</td>
+                                <td>{summary_value('block2_mean_std'):.1f}</td>
                             </tr>
                             <tr>
                                 <td><strong>Block 3</strong></td>
-                                <td>{summary['block3_mean_avg']:.1f}</td>
-                                <td>{summary['block3_mean_std']:.1f}</td>
+                                <td>{summary_value('block3_mean_avg'):.1f}</td>
+                                <td>{summary_value('block3_mean_std'):.1f}</td>
                             </tr>
                             <tr>
                                 <td><strong>Block 4</strong></td>
-                                <td>{summary['block4_mean_avg']:.1f}</td>
-                                <td>{summary['block4_mean_std']:.1f}</td>
+                                <td>{summary_value('block4_mean_avg'):.1f}</td>
+                                <td>{summary_value('block4_mean_std'):.1f}</td>
                             </tr>
                             <tr style="background: #f0f1ff;">
-                                <td><strong>Difference (B1-B3)</strong></td>
-                                <td>{summary['mean_difference_avg']:.1f}</td>
-                                <td>{summary['mean_difference_std']:.1f}</td>
+                                <td><strong>Difference (B2-B4)</strong></td>
+                                <td>{summary_value('coal_difference_avg'):.1f}</td>
+                                <td>{summary_value('coal_difference_std'):.1f}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1768,6 +1822,8 @@
                     'blockAttenuationComparison',
                     build_block_attenuation_summary(comparison_result),
                 )
+                if summary.get('air_validation_warning'):
+                    show_message(f"Block analysis warning: {summary.get('air_validation_warning')}", True)
             except Exception as e:
                 console.error("Error in display_block_comparison_results:", str(e))
                 import traceback

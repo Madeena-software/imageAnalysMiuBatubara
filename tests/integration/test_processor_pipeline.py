@@ -157,6 +157,14 @@ def test_golden_block_pipeline_plausibility_and_r_squared(block_golden_base64):
         mu4 = float(out1["comp"]["summary"]["mu_block4"])
         assert 0.0 < mu2 < 1.0
         assert 0.0 < mu4 < 1.0
+        for key in (
+            "block1_mean_avg",
+            "block2_mean_avg",
+            "block3_mean_avg",
+            "block4_mean_avg",
+            "mean_difference_avg",
+        ):
+            assert key in out1["comp"]["summary"]
 
         x2 = np.array(out1["comp"]["block2_model"]["x"], dtype=float)
         y2 = np.array(out1["comp"]["block2_model"]["y"], dtype=float)

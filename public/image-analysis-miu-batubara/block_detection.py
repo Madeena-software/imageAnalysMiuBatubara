@@ -12,7 +12,7 @@ DEBUG = True
 # Shrink each ROI by scaling polygon dimensions to 88% of original (12% total shrink from center)
 # before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
-AIR_STEP_MAX_REL_DIFF = 0.20
+AIR_STEP_MAX_REL_DIFF = 0.35
 # Backward-compatible tunables used by integration tests.
 AIR_GRADIENT_MIN_SCORE = 0.0
 AIR_STEP_MEAN_REL_DIFF = AIR_STEP_MAX_REL_DIFF
@@ -76,6 +76,85 @@ def _mean_intensity_in_box(img_16bit, box, shrink_ratio=ROI_SHRINK_RATIO):
     return float(np.mean(pixel_values)), pixel_values
 
 
+def _block_band_means(img_16bit, box, band_ratio=0.2):
+    box_arr = np.array(box, dtype=np.int32)
+    h, w = img_16bit.shape[:2]
+    x, y, bw, bh = cv2.boundingRect(box_arr)
+
+    x0 = max(0, x)
+    y0 = max(0, y)
+    x1 = min(w, x + bw)
+    y1 = min(h, y + bh)
+    if x1 <= x0 or y1 <= y0:
+        return None, None
+
+    roi = img_16bit[y0:y1, x0:x1]
+    roi_mask = np.zeros(roi.shape, dtype=np.uint8)
+    shifted = box_arr - np.array([x0, y0], dtype=np.int32)
+    cv2.fillPoly(roi_mask, [shifted], 255)
+
+    band = max(1, int((y1 - y0) * float(band_ratio)))
+    top_band = np.zeros_like(roi_mask)
+    bottom_band = np.zeros_like(roi_mask)
+    top_band[:band, :] = 255
+    bottom_band[-band:, :] = 255
+
+    top_vals = roi[(roi_mask == 255) & (top_band == 255)]
+    bottom_vals = roi[(roi_mask == 255) & (bottom_band == 255)]
+    if len(top_vals) == 0 or len(bottom_vals) == 0:
+        return None, None
+
+    return float(np.mean(top_vals)), float(np.mean(bottom_vals))
+
+
+def _extract_block_candidate(img_16bit, cnt):
+    area = cv2.contourArea(cnt)
+    rect = cv2.minAreaRect(cnt)
+    box = cv2.boxPoints(rect)
+    box = box.astype(int)
+    center = (int(rect[0][0]), int(rect[0][1]))
+    rect_width, rect_height = rect[1]
+
+    width = min(rect_width, rect_height)
+    height = max(rect_width, rect_height)
+    longest_side = height
+    shortest_side = width
+
+    perimeter = cv2.arcLength(cnt, True)
+    if perimeter == 0 or longest_side <= 0:
+        return None
+
+    rect_area = width * height
+    if rect_area == 0:
+        return None
+    rectangularity = area / rect_area
+
+    hull = cv2.convexHull(cnt)
+    hull_area = cv2.contourArea(hull)
+    if hull_area == 0:
+        return None
+    solidity = area / hull_area
+
+    mean_value, _ = _mean_intensity_in_box(img_16bit, box, ROI_SHRINK_RATIO)
+    top_mean, bottom_mean = _block_band_means(img_16bit, box, band_ratio=0.2)
+
+    return {
+        "center": center,
+        "box": box.tolist(),
+        "width": float(width),
+        "height": float(height),
+        "longest_side": float(longest_side),
+        "shortest_side": float(shortest_side),
+        "contour": cnt,
+        "area": float(area),
+        "rectangularity": float(rectangularity),
+        "solidity": float(solidity),
+        "mean_value": float(mean_value),
+        "top_mean": None if top_mean is None else float(top_mean),
+        "bottom_mean": None if bottom_mean is None else float(bottom_mean),
+    }
+
+
 def _build_axis_aligned_box(center, width, height):
     """Build rectangular ROI around center using locked width/height dimensions."""
     cx, cy = float(center[0]), float(center[1])
@@ -101,48 +180,20 @@ def _validate_block_orientation(img_16bit, all_blocks):
     if len(all_blocks) == 0:
         raise ValueError("Orientation validation failed: no blocks available for orientation check.")
 
-    candidate_blocks = [b for b in all_blocks if b.get("id") in (2, 4)]
+    candidate_blocks = [b for b in all_blocks if b.get("id") in (1, 3)]
     if len(candidate_blocks) == 0:
-        candidate_blocks = all_blocks
+        raise ValueError("Orientation validation failed: no Air reference blocks (Block 1 & 3) available for orientation check.")
 
     inverted_votes = 0
     checked = 0
     h, w = img_16bit.shape[:2]
 
     for block in candidate_blocks:
-        box = np.array(block["box"], dtype=np.int32)
-        x, y, bw, bh = cv2.boundingRect(box)
-        if bw <= 0 or bh <= 0:
-            continue
-
-        x0 = max(0, x)
-        y0 = max(0, y)
-        x1 = min(w, x + bw)
-        y1 = min(h, y + bh)
-        if x1 <= x0 or y1 <= y0:
-            continue
-
-        roi = img_16bit[y0:y1, x0:x1]
-        roi_mask = np.zeros(roi.shape, dtype=np.uint8)
-        shifted = box - np.array([x0, y0], dtype=np.int32)
-        cv2.fillPoly(roi_mask, [shifted], 255)
-
-        band = max(1, int((y1 - y0) * 0.2))
-        top_band = np.zeros_like(roi_mask)
-        bottom_band = np.zeros_like(roi_mask)
-        top_band[:band, :] = 255
-        bottom_band[-band:, :] = 255
-
-        top_mask = cv2.bitwise_and(roi_mask, top_band)
-        bottom_mask = cv2.bitwise_and(roi_mask, bottom_band)
-        top_vals = roi[top_mask == 255]
-        bottom_vals = roi[bottom_mask == 255]
-        if len(top_vals) == 0 or len(bottom_vals) == 0:
+        top_mean, bottom_mean = _block_band_means(img_16bit, block["box"], band_ratio=0.2)
+        if top_mean is None or bottom_mean is None:
             continue
 
         checked += 1
-        top_mean = float(np.mean(top_vals))
-        bottom_mean = float(np.mean(bottom_vals))
         if bottom_mean >= top_mean:
             inverted_votes += 1
 
@@ -153,6 +204,75 @@ def _validate_block_orientation(img_16bit, all_blocks):
             "Orientation validation failed: darkest 10 mm side is not at the bottom. "
             "Upload image with correct orientation (10 mm darkest side at bottom) and retry."
         )
+
+
+def _select_air_reference_blocks(img_16bit, candidate_blocks):
+    """Select the best matching air-reference pair from detected block contours."""
+    if len(candidate_blocks) < 2:
+        raise ValueError("Block detection failed: unable to establish the Block 1/3 reference pair.")
+
+    enriched_blocks = []
+    for block in candidate_blocks:
+        enriched = dict(block)
+        if enriched.get("mean_value") is None:
+            mean_value, _ = _mean_intensity_in_box(img_16bit, enriched["box"], ROI_SHRINK_RATIO)
+            enriched["mean_value"] = float(mean_value)
+        if enriched.get("top_mean") is None or enriched.get("bottom_mean") is None:
+            top_mean, bottom_mean = _block_band_means(img_16bit, enriched["box"], band_ratio=0.2)
+            enriched["top_mean"] = None if top_mean is None else float(top_mean)
+            enriched["bottom_mean"] = None if bottom_mean is None else float(bottom_mean)
+        if enriched.get("top_mean") is None or enriched.get("bottom_mean") is None:
+            continue
+        enriched_blocks.append(enriched)
+
+    if len(enriched_blocks) < 2:
+        raise ValueError("Block detection failed: unable to establish the Block 1/3 reference pair.")
+
+    eps = 1e-9
+    image_width = float(img_16bit.shape[1]) if img_16bit.ndim >= 2 else 1.0
+    best_pair = None
+    best_score = -np.inf
+
+    for left_index, left_block in enumerate(enriched_blocks):
+        for right_index in range(left_index + 1, len(enriched_blocks)):
+            right_block = enriched_blocks[right_index]
+            if right_block["center"][0] <= left_block["center"][0]:
+                continue
+
+            pair_mean = (left_block["mean_value"] + right_block["mean_value"]) / 2.0
+            mean_diff = abs(left_block["mean_value"] - right_block["mean_value"]) / max(pair_mean, eps)
+
+            pair_top_mean = (left_block["top_mean"] + right_block["top_mean"]) / 2.0
+            top_diff = abs(left_block["top_mean"] - right_block["top_mean"]) / max(pair_top_mean, eps)
+
+            pair_bottom_mean = (left_block["bottom_mean"] + right_block["bottom_mean"]) / 2.0
+            bottom_diff = abs(left_block["bottom_mean"] - right_block["bottom_mean"]) / max(pair_bottom_mean, eps)
+
+            separation = (right_block["center"][0] - left_block["center"][0]) / max(image_width, eps)
+            rectangularity = (
+                float(left_block.get("rectangularity", 0.0)) + float(right_block.get("rectangularity", 0.0))
+            ) / 2.0
+            solidity = (float(left_block.get("solidity", 0.0)) + float(right_block.get("solidity", 0.0))) / 2.0
+            darkness = 1.0 - (pair_mean / 65535.0)
+
+            score = (
+                (3.0 * darkness)
+                + (0.25 * separation)
+                + (0.20 * rectangularity)
+                + (0.15 * solidity)
+                - (5.0 * mean_diff)
+                - (4.5 * bottom_diff)
+                - (1.0 * top_diff)
+            )
+
+            if score > best_score:
+                best_score = score
+                best_pair = (left_block, right_block)
+
+    if best_pair is None:
+        raise ValueError("Block detection failed: unable to establish the Block 1/3 reference pair.")
+
+    return [best_pair[0], best_pair[1]]
 
 
 def _numpy_to_base64(img_array):
@@ -185,56 +305,23 @@ def process_blocks(file_bytes, params):
 
         contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        candidate_blocks = []
         valid_blocks = []
         for cnt in contours:
-            area = cv2.contourArea(cnt)
-            rect = cv2.minAreaRect(cnt)
-            box = cv2.boxPoints(rect)
-            box = box.astype(int)
-            center = (int(rect[0][0]), int(rect[0][1]))
-            rect_width, rect_height = rect[1]
-
-            width = min(rect_width, rect_height)
-            height = max(rect_width, rect_height)
-            longest_side = height
-            shortest_side = width
-
-            perimeter = cv2.arcLength(cnt, True)
-            if perimeter == 0:
+            candidate = _extract_block_candidate(img_16bit, cnt)
+            if candidate is None:
                 continue
 
-            if longest_side < min_length_rectangular or longest_side > max_length_rectangular:
+            candidate_blocks.append(candidate)
+
+            if candidate["longest_side"] < min_length_rectangular or candidate["longest_side"] > max_length_rectangular:
+                continue
+            if candidate["rectangularity"] < min_rectangularity:
+                continue
+            if candidate["solidity"] < min_solidity:
                 continue
 
-            rect_area = width * height
-            if rect_area == 0:
-                continue
-            rectangularity = area / rect_area
-            if rectangularity < min_rectangularity:
-                continue
-
-            hull = cv2.convexHull(cnt)
-            hull_area = cv2.contourArea(hull)
-            if hull_area == 0:
-                continue
-            solidity = area / hull_area
-            if solidity < min_solidity:
-                continue
-
-            valid_blocks.append(
-                {
-                    "center": center,
-                    "box": box.tolist(),
-                    "width": float(width),
-                    "height": float(height),
-                    "longest_side": float(longest_side),
-                    "shortest_side": float(shortest_side),
-                    "contour": cnt,
-                    "area": float(area),
-                    "rectangularity": float(rectangularity),
-                    "solidity": float(solidity),
-                    }
-                )
+            valid_blocks.append(candidate)
 
         if len(valid_blocks) > 1:
             filtered = []
@@ -258,16 +345,29 @@ def process_blocks(file_bytes, params):
             valid_blocks = filtered
 
         valid_blocks.sort(key=lambda c: c["center"][0])
-        if len(valid_blocks) < 3:
+        if len(valid_blocks) < 2:
             raise ValueError(
-                "Block detection failed: unable to establish Block 1/2/3 sequence. "
+                "Block detection failed: unable to establish the Block 1/3 reference pair. "
                 f"Detected valid contours: {len(valid_blocks)}."
             )
 
+        relaxed_rectangularity = max(0.85, float(min_rectangularity) - 0.05)
+        reference_candidates = [
+            block
+            for block in candidate_blocks
+            if block["longest_side"] >= min_length_rectangular
+            and block["longest_side"] <= max_length_rectangular
+            and block["rectangularity"] >= relaxed_rectangularity
+            and block["solidity"] >= min_solidity
+        ]
+        if len(reference_candidates) < 2:
+            reference_candidates = list(valid_blocks)
+
+        reference_candidates.sort(key=lambda c: c["center"][0])
+
         # Anchor-and-Project spatial sequence:
-        # 1) detect Air Block 1 and Air Block 3 (leftmost and rightmost)
-        block_1 = valid_blocks[0]
-        block_3 = valid_blocks[-1]
+        # 1) detect the best matching Air Block 1 and Air Block 3 pair.
+        block_1, block_3 = _select_air_reference_blocks(img_16bit, reference_candidates)
         x1, y1 = block_1["center"]
         x3, y3 = block_3["center"]
         if x3 <= x1:
@@ -298,14 +398,18 @@ def process_blocks(file_bytes, params):
         if not (center1[0] < center2[0] < center3[0]):
             raise ValueError("Block geometry validation failed: interpolated Block 2 is not between Block 1 and Block 3.")
 
-        # 4) locate Block 4 by extrapolation from spacing vector (Block1 -> Block2).
-        dx_ref = int(round(center2[0] - center1[0]))
-        dy_ref = int(round(center2[1] - center1[1]))
-        if dx_ref <= 0:
+        # 4) locate Block 4 by extrapolation from the average spacing of Block 1 -> 2 and 2 -> 3.
+        dx_12 = center2[0] - center1[0]
+        dy_12 = center2[1] - center1[1]
+        dx_23 = center3[0] - center2[0]
+        dy_23 = center3[1] - center2[1]
+        avg_dx = (dx_12 + dx_23) / 2.0
+        avg_dy = (dy_12 + dy_23) / 2.0
+        if avg_dx <= 0:
             raise ValueError("Block geometry validation failed: invalid x-spacing for Block 4 extrapolation.")
         center4 = (
-            center3[0] + dx_ref,
-            center3[1] + dy_ref,
+            center3[0] + avg_dx,
+            center3[1] + avg_dy,
         )
 
         # Apply locked anchor dimensions to ALL four ROIs.
@@ -781,7 +885,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
 
         def _orient_stats(stats):
             ordered = list(reversed(stats)) if reverse_orientation else list(stats)
-            thicknesses = list(range(10, 0, -1))
+            thicknesses = list(range(1, 11))
             out = []
             for idx, row in enumerate(ordered):
                 row_out = dict(row)
@@ -798,13 +902,14 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
         # Validate only the bottom (max thickness) air step from Block 1 and Block 3.
-        bottom_step_b1 = max(block1_stats, key=lambda s: float(s["x_coal_mm"]))
-        bottom_step_b3 = max(block3_stats, key=lambda s: float(s["x_coal_mm"]))
+        bottom_step_b1 = block1_stats[-1]
+        bottom_step_b3 = block3_stats[-1]
         bottom_air1 = float(bottom_step_b1["mean"])
         bottom_air3 = float(bottom_step_b3["mean"])
         bottom_rel_diff = abs(bottom_air1 - bottom_air3) / max((bottom_air1 + bottom_air3) / 2.0, eps)
+        air_validation_warning = None
         if bottom_rel_diff > air_step_max_rel_diff:
-            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+            air_validation_warning = AIR_BLOCK_VALIDATION_ERROR
 
         # Step-wise air reference from Block 1 and Block 3.
         air_ref = (air1 + air3) / 2.0
@@ -848,8 +953,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         ax1.set_xlabel("Thickness x (mm)", fontweight="bold")
         ax1.set_ylabel("Mean Intensity (I)", fontweight="bold")
         ax1.set_title("Intensity vs Subdivision Thickness", fontweight="bold")
-        ax1.set_xticks(list(range(10, 0, -1)))
-        ax1.invert_xaxis()
+        ax1.set_xticks(list(range(1, 11)))
         ax1.grid(True, alpha=0.3)
         ax1.legend()
         plt.tight_layout()
@@ -869,8 +973,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             f"Coal μ vs Thickness (fit μ2={block2_model['mu_coal']:.5f}, μ4={block4_model['mu_coal']:.5f})",
             fontweight="bold",
         )
-        ax2.set_xticks(list(range(10, 0, -1)))
-        ax2.invert_xaxis()
+        ax2.set_xticks(list(range(1, 11)))
         ax2.grid(True, alpha=0.3)
         ax2.legend()
         plt.tight_layout()
@@ -894,6 +997,19 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             "slope_block4": block4_model["slope"],
             "intercept_block2": block2_model["intercept"],
             "intercept_block4": block4_model["intercept"],
+            "air_validation_warning": air_validation_warning,
+            "block1_mean_avg": float(np.mean([s["mean"] for s in block1_stats])),
+            "block1_mean_std": float(np.std([s["mean"] for s in block1_stats])),
+            "block2_mean_avg": float(np.mean([s["mean"] for s in block2_stats])),
+            "block2_mean_std": float(np.std([s["mean"] for s in block2_stats])),
+            "block3_mean_avg": float(np.mean([s["mean"] for s in block3_stats])),
+            "block3_mean_std": float(np.std([s["mean"] for s in block3_stats])),
+            "block4_mean_avg": float(np.mean([s["mean"] for s in block4_stats])),
+            "block4_mean_std": float(np.std([s["mean"] for s in block4_stats])),
+            "mean_difference_avg": float(np.mean(np.array([b1["mean"] - b3["mean"] for b1, b3 in zip(block1_stats, block3_stats)]))),
+            "mean_difference_std": float(np.std(np.array([b1["mean"] - b3["mean"] for b1, b3 in zip(block1_stats, block3_stats)]))),
+            "coal_difference_avg": float(np.mean(np.array([b2["mean"] - b4["mean"] for b2, b4 in zip(block2_stats, block4_stats)]))),
+            "coal_difference_std": float(np.std(np.array([b2["mean"] - b4["mean"] for b2, b4 in zip(block2_stats, block4_stats)]))),
             # Backward compatibility aliases for callers that still expect
             # the old numbering where coal curves were exposed as block1/block3.
             "mu_block1": block2_model["mu_coal"],

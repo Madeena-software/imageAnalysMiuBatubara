@@ -156,7 +156,7 @@ def test_block_detection_ui_flow(e2e_base_url, browser_page):
     page.click("#blockModeBtn")
     assert "active" in (page.get_attribute("#blockModeBtn", "class") or "")
 
-    file_path = REPO_ROOT / "1771914199828_processedimage.tiff"
+    file_path = REPO_ROOT / "1771914199828_processedimage_corrected.tiff"
     page.set_input_files("#fileInput", str(file_path))
     page.wait_for_timeout(1000)
     page.click("#processBlockBtn")

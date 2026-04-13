@@ -496,35 +496,29 @@ def generate_block_detection_pdf(
 
             summary = comparison_result.get("summary", {})
 
-            # Block 1 stats
-            pdf.add_subsection_title("Block 1 Statistics")
-            pdf.add_key_value(
-                "Average Mean", f"{summary.get('block1_avg_mean', 'N/A'):.2f}"
-            )
-            pdf.add_key_value(
-                "Std of Means", f"{summary.get('block1_std_mean', 'N/A'):.2f}"
-            )
+            def _fmt_summary_value(key):
+                value = summary.get(key)
+                return "N/A" if value is None else f"{float(value):.2f}"
+
+            # Block 2 stats
+            pdf.add_subsection_title("Block 2 Statistics")
+            pdf.add_key_value("Average Mean", _fmt_summary_value("block2_mean_avg"))
+            pdf.add_key_value("Std of Means", _fmt_summary_value("block2_mean_std"))
             pdf.ln(2)
 
-            # Block 3 stats
-            pdf.add_subsection_title("Block 3 Statistics")
-            pdf.add_key_value(
-                "Average Mean", f"{summary.get('block3_avg_mean', 'N/A'):.2f}"
-            )
-            pdf.add_key_value(
-                "Std of Means", f"{summary.get('block3_std_mean', 'N/A'):.2f}"
-            )
+            # Block 4 stats
+            pdf.add_subsection_title("Block 4 Statistics")
+            pdf.add_key_value("Average Mean", _fmt_summary_value("block4_mean_avg"))
+            pdf.add_key_value("Std of Means", _fmt_summary_value("block4_mean_std"))
             pdf.ln(2)
 
             # Comparison
             pdf.add_subsection_title("Comparison")
             pdf.add_key_value(
-                "Overall Mean Difference",
-                f"{summary.get('overall_mean_diff', 'N/A'):.2f}",
+                "Mean Difference (B2-B4)",
+                _fmt_summary_value("coal_difference_avg"),
             )
-            pdf.add_key_value(
-                "Percentage Difference", f"{summary.get('percentage_diff', 'N/A'):.2f}%"
-            )
+            pdf.add_key_value("Std of Difference", _fmt_summary_value("coal_difference_std"))
             pdf.ln(5)
 
             if "comparison_image" in comparison_result:

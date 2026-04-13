@@ -10,7 +10,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = REPO_ROOT / "public" / "image-analysis-miu-batubara"
 CIRCLE_GOLDEN = REPO_ROOT / "Wadah Silinder Baru_1770011538520_processedimage.tiff"
-BLOCK_GOLDEN = REPO_ROOT / "1771914199828_processedimage.tiff"
+BLOCK_GOLDEN = REPO_ROOT / "1771914199828_processedimage_corrected.tiff"
 
 
 if str(APP_DIR) not in sys.path:

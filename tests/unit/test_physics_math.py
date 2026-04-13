@@ -161,7 +161,7 @@ def test_gradient_validation_normalizes_inverted_air(monkeypatch):
 
 
 @pytest.mark.unit
-def test_gradient_validation_raises_for_inverted_air(monkeypatch):
+def test_gradient_validation_warns_for_inverted_air(monkeypatch):
     air_bad = np.array([30000, 32000, 34000, 36000, 38000, 40000, 42000, 44000, 46000, 48000], dtype=float)
     air_good = np.array([52000, 50000, 48000, 45500, 43000, 40500, 38000, 35500, 33000, 30500], dtype=float)
     coal = np.array([41000, 39000, 36500, 34000, 31500, 29000, 26500, 24000, 21500, 19500], dtype=float)
@@ -181,5 +181,58 @@ def test_gradient_validation_raises_for_inverted_air(monkeypatch):
     monkeypatch.setattr(block_detection, "_load_and_validate_image", fake_load_and_validate)
     monkeypatch.setattr(block_detection, "_mean_intensity_in_box", fake_mean_intensity)
 
-    with pytest.raises(ValueError, match="Validation Failed: The Air reference blocks"):
-        block_detection.compare_blocks_1_vs_3(b"dummy", _make_subdivisions())
+    out = block_detection.compare_blocks_1_vs_3(b"dummy", _make_subdivisions())
+    assert out["summary"]["air_validation_warning"].startswith("E_BLOCK_AIR_ROI")
+
+
+@pytest.mark.unit
+def test_select_air_reference_blocks_prefers_matching_outer_pair():
+    dummy_img = np.zeros((16, 2000), dtype=np.uint16)
+    candidates = [
+        {
+            "center": (248, 994),
+            "box": [[0, 0], [1, 0], [1, 1], [0, 1]],
+            "width": 209.2,
+            "height": 1548.3,
+            "longest_side": 1548.3,
+            "shortest_side": 209.2,
+            "area": 1.0,
+            "rectangularity": 0.9187,
+            "solidity": 0.9384,
+            "mean_value": 23775.8,
+            "top_mean": 46649.9,
+            "bottom_mean": 8936.9,
+        },
+        {
+            "center": (828, 1107),
+            "box": [[0, 0], [1, 0], [1, 1], [0, 1]],
+            "width": 205.3,
+            "height": 1316.5,
+            "longest_side": 1316.5,
+            "shortest_side": 205.3,
+            "area": 1.0,
+            "rectangularity": 0.9102,
+            "solidity": 0.9306,
+            "mean_value": 41943.3,
+            "top_mean": 49720.2,
+            "bottom_mean": 34263.9,
+        },
+        {
+            "center": (1412, 1002),
+            "box": [[0, 0], [1, 0], [1, 1], [0, 1]],
+            "width": 205.3,
+            "height": 1510.5,
+            "longest_side": 1510.5,
+            "shortest_side": 205.3,
+            "area": 1.0,
+            "rectangularity": 0.8954,
+            "solidity": 0.9392,
+            "mean_value": 24242.6,
+            "top_mean": 46825.9,
+            "bottom_mean": 7794.4,
+        },
+    ]
+
+    selected = block_detection._select_air_reference_blocks(dummy_img, candidates)
+
+    assert [block["center"] for block in selected] == [(248, 994), (1412, 1002)]

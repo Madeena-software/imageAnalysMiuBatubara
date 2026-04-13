@@ -12,22 +12,13 @@ DEBUG = True
 # Shrink each ROI by scaling polygon dimensions to 88% of original (12% total shrink from center)
 # before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
-AIR_GRADIENT_MIN_SCORE = 1.6
 AIR_STEP_MAX_REL_DIFF = 0.20
-AIR_STEP_MEAN_REL_DIFF = 0.10
-SPIKE_CURVATURE_SIGMA_MULTIPLIER = 4.0
 AIR_BLOCK_VALIDATION_CODE = "E_BLOCK_AIR_ROI"
 AIR_BLOCK_VALIDATION_ERROR = (
     f"{AIR_BLOCK_VALIDATION_CODE}: Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
     "or are incorrectly oriented. Expected arrangement: Block 1 leftmost and Block 3 rightmost. "
     "The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
 )
-
-
-def _apply_intensity_correction(value, offset=0.0, scale=1.0, eps=1e-9):
-    """Apply correction in order (value + offset) * scale, then floor to eps."""
-    corrected = (float(value) + float(offset)) * float(scale)
-    return float(max(corrected, eps))
 
 
 def _load_image(file_bytes):
@@ -712,11 +703,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
     try:
         img_16bit = _load_and_validate_image(file_bytes)
         params = params or {}
-        intensity_offset = float(params.get("intensity_offset", 0.0))
-        intensity_scale = float(params.get("intensity_scale", 1.0))
-        air_gradient_min_score = float(params.get("air_gradient_min_score", AIR_GRADIENT_MIN_SCORE))
         air_step_max_rel_diff = float(params.get("air_step_max_rel_diff", AIR_STEP_MAX_REL_DIFF))
-        air_step_mean_rel_diff = float(params.get("air_step_mean_rel_diff", AIR_STEP_MEAN_REL_DIFF))
         subdivision_data = subdivisions["subdivisions"]
         expected_steps = 10
         eps = 1e-9
@@ -781,33 +768,16 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         block3_stats = _orient_stats(block3_raw)
         block4_stats = _orient_stats(block4_raw)
 
-        air1 = np.array(
-            [_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale, eps) for s in block1_stats],
-            dtype=float,
-        )
-        air3 = np.array(
-            [_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale, eps) for s in block3_stats],
-            dtype=float,
-        )
+        air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
+        air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        air1_decrease_score = _monotonic_decrease_score(air1)
-        air3_decrease_score = _monotonic_decrease_score(air3)
-        if air1_decrease_score < air_gradient_min_score or air3_decrease_score < air_gradient_min_score:
-            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
-
-        rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)
-        if float(np.max(rel_diff)) > air_step_max_rel_diff or float(np.mean(rel_diff)) > air_step_mean_rel_diff:
-            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
-
-        def _has_spike(values):
-            diffs = np.diff(values)
-            if len(diffs) < 3:
-                return False
-            curvature = np.abs(np.diff(diffs))
-            scale = np.std(diffs) + eps
-            return bool(np.max(curvature) > SPIKE_CURVATURE_SIGMA_MULTIPLIER * scale)
-
-        if _has_spike(air1) or _has_spike(air3):
+        # Validate only the bottom (max thickness) air step from Block 1 and Block 3.
+        bottom_step_b1 = max(block1_stats, key=lambda s: float(s["x_coal_mm"]))
+        bottom_step_b3 = max(block3_stats, key=lambda s: float(s["x_coal_mm"]))
+        bottom_air1 = float(bottom_step_b1["mean"])
+        bottom_air3 = float(bottom_step_b3["mean"])
+        bottom_rel_diff = abs(bottom_air1 - bottom_air3) / max((bottom_air1 + bottom_air3) / 2.0, eps)
+        if bottom_rel_diff > air_step_max_rel_diff:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         # Step-wise air reference from Block 1 and Block 3.
@@ -818,10 +788,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
 
         def _compute_mu_series(coal_stats):
             x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
-            i_t = np.array(
-                [_apply_intensity_correction(float(s["mean"]), intensity_offset, intensity_scale, eps) for s in coal_stats],
-                dtype=float,
-            )
+            i_t = np.array([float(s["mean"]) for s in coal_stats], dtype=float)
             i0 = np.clip(air_ref, eps, None)
             ratio = np.clip(i_t / i0, eps, None)
             y = -np.log(ratio)
@@ -889,11 +856,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         summary = {
             "orientation": orientation,
             "i0_air_x10": i0_air_x10,
-            "intensity_offset": intensity_offset,
-            "intensity_scale": intensity_scale,
-            "air_gradient_min_score": air_gradient_min_score,
             "air_step_max_rel_diff": air_step_max_rel_diff,
-            "air_step_mean_rel_diff": air_step_mean_rel_diff,
+            "air_bottom_rel_diff": float(bottom_rel_diff),
             "mu_block2": block2_model["mu_coal"],
             "mu_block4": block4_model["mu_coal"],
             "mu_acrylic_block2": block2_model["mu_acrylic"],

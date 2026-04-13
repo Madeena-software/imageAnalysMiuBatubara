@@ -657,16 +657,6 @@
                         <small><strong>Impact:</strong> How solid/filled the shape is (1.0 = no holes). Lower = accept shapes with holes/dents, Higher = only solid circles (default: 0.7)</small>
                     </div>
                     <div class="param-item">
-                        <label for="circleIntensityOffset">Intensity Correction Offset</label>
-                        <input type="number" id="circleIntensityOffset" value="0" min="-20000" max="20000" step="10" />
-                        <small><strong>Impact:</strong> Adds offset to sampled intensities before physics validation (default: 0)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="circleIntensityScale">Intensity Correction Scale</label>
-                        <input type="number" id="circleIntensityScale" value="1.00" min="0.10" max="5.00" step="0.01" />
-                        <small><strong>Impact:</strong> Multiplies sampled intensities before physics validation (default: 1.00)</small>
-                    </div>
-                    <div class="param-item">
                         <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
                         <input type="number" id="circleAirCvThreshold" value="0.05" min="0.01" max="0.50" step="0.01" />
                         <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.05)</small>
@@ -713,29 +703,9 @@
                         <small><strong>Impact:</strong> Number of subdivisions per block (default: 10)</small>
                     </div>
                     <div class="param-item">
-                        <label for="blockIntensityOffset">Intensity Correction Offset</label>
-                        <input type="number" id="blockIntensityOffset" value="0" min="-20000" max="20000" step="10" />
-                        <small><strong>Impact:</strong> Adds offset to sampled intensities before physics validation (default: 0)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="blockIntensityScale">Intensity Correction Scale</label>
-                        <input type="number" id="blockIntensityScale" value="1.00" min="0.10" max="5.00" step="0.01" />
-                        <small><strong>Impact:</strong> Multiplies sampled intensities before physics validation (default: 1.00)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="blockGradientMinScore">Air Gradient Min Score</label>
-                        <input type="number" id="blockGradientMinScore" value="1.6" min="0.5" max="2.0" step="0.1" />
-                        <small><strong>Impact:</strong> Lower is less strict for top-to-bottom air monotonic trend (default: 1.6)</small>
-                    </div>
-                    <div class="param-item">
                         <label for="blockStepMaxRelDiff">Air Step Max Relative Diff</label>
                         <input type="number" id="blockStepMaxRelDiff" value="0.20" min="0.05" max="1.00" step="0.01" />
-                        <small><strong>Impact:</strong> Higher allows larger per-step difference between Block 1 and Block 3 air curves (default: 0.20)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="blockStepMeanRelDiff">Air Step Mean Relative Diff</label>
-                        <input type="number" id="blockStepMeanRelDiff" value="0.10" min="0.01" max="1.00" step="0.01" />
-                        <small><strong>Impact:</strong> Higher allows larger average air difference between Block 1 and Block 3 (default: 0.10)</small>
+                        <small><strong>Impact:</strong> Higher allows larger difference between Block 1 vs Block 3 at the bottom (max-thickness) air step (default: 0.20)</small>
                     </div>
                 </div>
 
@@ -1093,8 +1063,6 @@
                 'max_diameter': int(document.getElementById('maxDiameter').value),
                 'min_circularity': float(document.getElementById('minCircularity').value),
                 'min_solidity': float(document.getElementById('minSolidity').value),
-                'intensity_offset': float(document.getElementById('circleIntensityOffset').value),
-                'intensity_scale': float(document.getElementById('circleIntensityScale').value),
                 'air_cv_threshold': float(document.getElementById('circleAirCvThreshold').value),
                 'expected_count': 16,
                 'grid_cols': 4,
@@ -1196,11 +1164,7 @@
                 'max_length_rectangular': int(document.getElementById('maxLength').value),
                 'min_rectangularity': float(document.getElementById('minRectangularity').value),
                 'min_solidity': float(document.getElementById('blockMinSolidity').value),
-                'intensity_offset': float(document.getElementById('blockIntensityOffset').value),
-                'intensity_scale': float(document.getElementById('blockIntensityScale').value),
-                'air_gradient_min_score': float(document.getElementById('blockGradientMinScore').value),
                 'air_step_max_rel_diff': float(document.getElementById('blockStepMaxRelDiff').value),
-                'air_step_mean_rel_diff': float(document.getElementById('blockStepMeanRelDiff').value),
             }
 
             document.getElementById('blockInvalidRoiSection').style.display = 'none'
@@ -1758,8 +1722,6 @@
                     'Max Diameter': document.getElementById('maxDiameter').value + ' px',
                     'Min Circularity': document.getElementById('minCircularity').value,
                     'Min Solidity': document.getElementById('minSolidity').value,
-                    'Intensity Offset': document.getElementById('circleIntensityOffset').value,
-                    'Intensity Scale': document.getElementById('circleIntensityScale').value,
                     'Air CV Threshold': document.getElementById('circleAirCvThreshold').value
                 };
             } else {
@@ -1770,11 +1732,7 @@
                     'Min Rectangularity': document.getElementById('minRectangularity').value,
                     'Min Solidity': document.getElementById('blockMinSolidity').value,
                     'Subdivisions': document.getElementById('numSubdivisions').value,
-                    'Intensity Offset': document.getElementById('blockIntensityOffset').value,
-                    'Intensity Scale': document.getElementById('blockIntensityScale').value,
-                    'Air Gradient Min Score': document.getElementById('blockGradientMinScore').value,
-                    'Air Step Max Rel Diff': document.getElementById('blockStepMaxRelDiff').value,
-                    'Air Step Mean Rel Diff': document.getElementById('blockStepMeanRelDiff').value
+                    'Air Step Max Rel Diff': document.getElementById('blockStepMaxRelDiff').value
                 };
             }
         }

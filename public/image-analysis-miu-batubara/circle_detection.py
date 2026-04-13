@@ -20,12 +20,6 @@ AIR_DIAGONAL_VALIDATION_ERROR = (
 )
 
 
-def _apply_intensity_correction(value, offset=0.0, scale=1.0, eps=1e-9):
-    """Apply correction in order (value + offset) * scale, then floor to eps."""
-    corrected = (float(value) + float(offset)) * float(scale)
-    return float(max(corrected, eps))
-
-
 def _load_image(file_bytes):
     """Load TIFF bytes into a NumPy array, compatible with PyScript runtime."""
     nparr = np.frombuffer(file_bytes, np.uint8)
@@ -507,8 +501,6 @@ def compare_diagonals(file_bytes, grid_results, params=None):
     try:
         img_16bit = _load_and_validate_image(file_bytes)
         params = params or {}
-        intensity_offset = float(params.get("intensity_offset", 0.0))
-        intensity_scale = float(params.get("intensity_scale", 1.0))
         air_cv_threshold = float(params.get("air_cv_threshold", AIR_CV_THRESHOLD))
 
         grid_data = grid_results["grid"]
@@ -566,10 +558,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 "Circle validation failed: expected 4 anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
             )
-        anti_air_means = np.array(
-            [_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale) for s in anti_diagonal_stats],
-            dtype=float,
-        )
+        anti_air_means = np.array([s["mean"] for s in anti_diagonal_stats], dtype=float)
         anti_air_mean = float(np.mean(anti_air_means))
         if anti_air_mean <= 0:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
@@ -579,9 +568,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
 
         # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
         # Unit is pixel intensity from the 16-bit image.
-        i0_air = float(
-            np.mean([_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale) for s in diagonal_stats])
-        )
+        i0_air = float(np.mean([s["mean"] for s in diagonal_stats]))
         # Coal thickness used in ratio method, in millimeters.
         x_coal_mm = 6.0
         eps = 1e-9
@@ -590,8 +577,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
 
         def _attach_mu(stats_list):
             for s in stats_list:
-                corrected_mean = _apply_intensity_correction(s["mean"], intensity_offset, intensity_scale, eps)
-                ratio = np.clip(corrected_mean / i0_air, eps, None)
+                ratio = np.clip(s["mean"] / i0_air, eps, None)
                 # Beer-Lambert ratio method: μ = -ln(I_coal / I_air) / x_coal.
                 # Since x_coal_mm is in mm, resulting μ units are 1/mm.
                 s["mu_coal"] = float(-np.log(ratio) / x_coal_mm)
@@ -646,8 +632,6 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             "x_coal_mm": x_coal_mm,
             "anti_air_cv": anti_air_cv,
             "air_cv_threshold": air_cv_threshold,
-            "intensity_offset": intensity_offset,
-            "intensity_scale": intensity_scale,
             "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
             "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
             "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,

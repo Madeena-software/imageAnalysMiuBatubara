@@ -107,7 +107,7 @@ def build_circle_attenuation_summary(diagonal_result):
         "right_label": "Lower Anti-Diagonal Sample",
         "left_mu": upper_mu,
         "right_mu": lower_mu,
-        "delta_mu": float(delta_mu),
+        "delta_mu": delta_mu,
     }
 
 
@@ -131,7 +131,7 @@ def build_block_attenuation_summary(comparison_result):
         "right_label": "Block 4 (Coal)",
         "left_mu": mu_block2,
         "right_mu": mu_block4,
-        "delta_mu": float(delta_mu),
+        "delta_mu": delta_mu,
     }
 
 

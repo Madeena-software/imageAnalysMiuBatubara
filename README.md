@@ -62,6 +62,45 @@ python -m http.server 8000
 # Then manually open: http://localhost:8000/index.html
 ```
 
+## ✅ Testing Pyramid (Unit / Integration / E2E)
+
+This repository now includes a full testing pyramid under:
+
+- `tests/unit/`
+- `tests/integration/`
+- `tests/e2e/`
+
+### 1) Install test dependencies
+
+```bash
+python -m pip install pytest numpy pillow matplotlib opencv-python-headless playwright
+python -m playwright install chromium
+```
+
+### 2) Run unit tests (fast, isolated physics checks)
+
+```bash
+pytest -m unit -q
+```
+
+### 3) Run integration tests (golden TIFF pipeline checks)
+
+```bash
+pytest -m integration -q
+```
+
+### 4) Run Playwright E2E browser tests (circle + block user flows)
+
+```bash
+RUN_E2E=1 pytest -m e2e -q
+```
+
+### 5) Validate PyScript module syntax before push
+
+```bash
+python -m compileall public/image-analysis-miu-batubara
+```
+
 ## 📖 How to Use
 
 ### 1. Upload TIFF File

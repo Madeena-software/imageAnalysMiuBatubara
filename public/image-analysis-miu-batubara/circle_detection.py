@@ -9,6 +9,12 @@ import numpy as np
 from PIL import Image
 
 DEBUG = True
+AIR_CV_THRESHOLD = 0.05
+AIR_DIAGONAL_VALIDATION_ERROR = (
+    "Validation Failed: The 4 Air reference circles on the diagonal show inconsistent intensities. "
+    "Please adjust the Minimum/Maximum Diameter or Threshold parameters to ensure the circles fit strictly "
+    "inside the empty physical holes."
+)
 
 
 def _load_image(file_bytes):
@@ -467,6 +473,7 @@ def compare_diagonals(file_bytes, grid_results):
             )
 
         diagonal_items = []
+        anti_diagonal_items = []
         upper_items = []
         lower_items = []
 
@@ -474,6 +481,8 @@ def compare_diagonals(file_bytes, grid_results):
             row, col = item["grid_pos"]
             if row == col:
                 diagonal_items.append(item)
+            elif (row + col) == 3:
+                anti_diagonal_items.append(item)
             elif row < col:
                 upper_items.append(item)
             else:
@@ -502,6 +511,20 @@ def compare_diagonals(file_bytes, grid_results):
 
         if len(diagonal_stats) == 0:
             raise ValueError("Physics validation failed: no diagonal (air reference) circles were available.")
+
+        anti_diagonal_stats = _measure(anti_diagonal_items)
+        if len(anti_diagonal_stats) != 4:
+            raise ValueError(
+                "Circle validation failed: expected 4 anti-diagonal air reference circles, "
+                f"found {len(anti_diagonal_stats)}."
+            )
+        anti_air_means = np.array([s["mean"] for s in anti_diagonal_stats], dtype=float)
+        anti_air_mean = float(np.mean(anti_air_means))
+        if anti_air_mean <= 0:
+            raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
+        anti_air_cv = float(np.std(anti_air_means) / anti_air_mean)
+        if anti_air_cv > AIR_CV_THRESHOLD:
+            raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
         # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
         # Unit is pixel intensity from the 16-bit image.
@@ -567,6 +590,7 @@ def compare_diagonals(file_bytes, grid_results):
         summary = {
             "i0_air": i0_air,
             "x_coal_mm": x_coal_mm,
+            "anti_diagonal_air_cv": anti_air_cv,
             "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
             "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
             "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,

@@ -9,6 +9,14 @@ import numpy as np
 from PIL import Image
 
 DEBUG = True
+# Coefficient of Variation (CV = std/mean) threshold for anti-diagonal air circles.
+# AIR_CV_THRESHOLD=0.05 means CV > 5% indicates likely ROI contamination by acrylic wall/noise.
+AIR_CV_THRESHOLD = 0.05
+AIR_DIAGONAL_VALIDATION_ERROR = (
+    "Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
+    "Please adjust the Minimum/Maximum Diameter or Threshold parameters to ensure the circles fit strictly "
+    "inside the empty physical holes."
+)
 
 
 def _load_image(file_bytes):
@@ -19,6 +27,31 @@ def _load_image(file_bytes):
         pil_img = Image.open(io.BytesIO(file_bytes))
         img_16bit = np.array(pil_img)
     return img_16bit
+
+
+def _load_and_validate_image(file_bytes):
+    """Strict SOP validation: only 16-bit grayscale TIFF images are accepted."""
+    try:
+        pil_img = Image.open(io.BytesIO(file_bytes))
+    except Exception as exc:
+        raise ValueError(f"Image format validation failed: unable to read image bytes ({exc}).") from exc
+
+    img_format = (pil_img.format or "unknown").upper()
+    if img_format != "TIFF":
+        raise ValueError(
+            f"Image format validation failed: expected 16-bit grayscale TIFF, got format '{img_format}'."
+        )
+
+    img = np.array(pil_img)
+    if img.ndim != 2:
+        raise ValueError(
+            f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
+        )
+    if img.dtype != np.uint16:
+        raise ValueError(
+            f"Image format validation failed: expected 16-bit TIFF (uint16), got dtype '{img.dtype}'."
+        )
+    return img
 
 
 def _numpy_to_base64(img_array):
@@ -37,11 +70,7 @@ def _numpy_to_base64(img_array):
 def process_tiff_image(file_bytes, params):
     """Detect candidate circles from TIFF image bytes."""
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            if DEBUG:
-                print("Error: Could not load image")
-            return None
+        img_16bit = _load_and_validate_image(file_bytes)
 
         threshold_value = params.get("threshold_value", 24000)
         min_diameter = params.get("min_diameter", 50)
@@ -200,24 +229,26 @@ def process_tiff_image(file_bytes, params):
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in process_tiff_image: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-        return None
+        raise ValueError(f"Circle detection failed: {str(e)}") from e
 
 
 def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
     """Extrapolate full grid positions from detected diagonal circles."""
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            return None
+        img_16bit = _load_and_validate_image(file_bytes)
 
         circles = initial_results["circles"]
+        detected_count = len(circles)
+        if detected_count != 4:
+            raise ValueError(
+                "Circle anchor validation failed: expected exactly 4 detected anchor circles "
+                f"for diagonal extrapolation, found {detected_count}. "
+                "Adjust circle detection parameters in the UI and retry."
+            )
         if grid_size is None:
-            grid_size = len(circles)
+            grid_size = 4
+        if int(grid_size) != 4:
+            raise ValueError(f"Grid validation failed: expected 4x4 grid, received grid_size={grid_size}.")
 
         positions = [(c["center"][0], c["center"][1]) for c in circles]
         x_coords = [pos[0] for pos in positions]
@@ -261,6 +292,18 @@ def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
                 3,
             )
 
+        if len(grid_results) != 16:
+            raise ValueError(
+                f"Circle grid validation failed: expected exactly 16 circles in 4x4 grid, found {len(grid_results)}."
+            )
+
+        for item in grid_results:
+            cx, cy = item["center"]
+            if cx < 0 or cy < 0 or cx >= img_16bit.shape[1] or cy >= img_16bit.shape[0]:
+                raise ValueError(
+                    f"Circle grid validation failed: extrapolated center {item['center']} is out of image bounds."
+                )
+
         return {
             "grid": grid_results,
             "grid_image": _numpy_to_base64(img_rgb),
@@ -269,9 +312,7 @@ def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in detect_grid_from_diagonal: {str(e)}")
-        return None
+        raise ValueError(f"Grid extrapolation failed: {str(e)}") from e
 
 
 def analyze_grid_histograms(file_bytes, grid_results):
@@ -422,13 +463,19 @@ def compare_diagonals(file_bytes, grid_results):
     - Acrylic attenuation cancels out because both paths include identical acrylic layers.
     """
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            return None
+        img_16bit = _load_and_validate_image(file_bytes)
 
         grid_data = grid_results["grid"]
+        circle_count = len(grid_data)
+        if circle_count != 16:
+            raise ValueError(
+                "Circle count validation failed: expected exactly 16 circles before Beer-Lambert physics "
+                f"calculation, found {circle_count}. "
+                "Adjust circle detection parameters in the UI and retry."
+            )
 
         diagonal_items = []
+        anti_diagonal_items = []
         upper_items = []
         lower_items = []
 
@@ -436,6 +483,8 @@ def compare_diagonals(file_bytes, grid_results):
             row, col = item["grid_pos"]
             if row == col:
                 diagonal_items.append(item)
+            elif (row + col) == 3:
+                anti_diagonal_items.append(item)
             elif row < col:
                 upper_items.append(item)
             else:
@@ -463,7 +512,21 @@ def compare_diagonals(file_bytes, grid_results):
         lower_stats = _measure(lower_items)
 
         if len(diagonal_stats) == 0:
-            return None
+            raise ValueError("Physics validation failed: no diagonal (air reference) circles were available.")
+
+        anti_diagonal_stats = _measure(anti_diagonal_items)
+        if len(anti_diagonal_stats) != 4:
+            raise ValueError(
+                "Circle validation failed: expected 4 anti-diagonal air reference circles, "
+                f"found {len(anti_diagonal_stats)}."
+            )
+        anti_air_means = np.array([s["mean"] for s in anti_diagonal_stats], dtype=float)
+        anti_air_mean = float(np.mean(anti_air_means))
+        if anti_air_mean <= 0:
+            raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
+        anti_air_cv = float(np.std(anti_air_means) / anti_air_mean)
+        if anti_air_cv > AIR_CV_THRESHOLD:
+            raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
         # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
         # Unit is pixel intensity from the 16-bit image.
@@ -529,6 +592,7 @@ def compare_diagonals(file_bytes, grid_results):
         summary = {
             "i0_air": i0_air,
             "x_coal_mm": x_coal_mm,
+            "anti_air_cv": anti_air_cv,
             "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
             "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
             "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,
@@ -547,12 +611,7 @@ def compare_diagonals(file_bytes, grid_results):
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in compare_diagonals: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-        return None
+        raise ValueError(f"Circle Beer-Lambert analysis failed: {str(e)}") from e
 
 
 __all__ = [

@@ -9,6 +9,18 @@ import numpy as np
 from PIL import Image
 
 DEBUG = True
+# Shrink each ROI by scaling polygon dimensions to 88% of original (12% total shrink from center)
+# before intensity sampling to avoid bright wall contamination.
+ROI_SHRINK_RATIO = 0.12
+AIR_GRADIENT_MIN_SCORE = 1.6
+AIR_STEP_MAX_REL_DIFF = 0.20
+AIR_STEP_MEAN_REL_DIFF = 0.10
+SPIKE_CURVATURE_SIGMA_MULTIPLIER = 4.0
+AIR_BLOCK_VALIDATION_ERROR = (
+    "Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
+    "or are incorrectly oriented. Expected arrangement: Block 1 leftmost and Block 3 rightmost. "
+    "The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
+)
 
 
 def _load_image(file_bytes):
@@ -18,6 +30,107 @@ def _load_image(file_bytes):
         pil_img = Image.open(io.BytesIO(file_bytes))
         img_16bit = np.array(pil_img)
     return img_16bit
+
+
+def _load_and_validate_image(file_bytes):
+    """Strict SOP validation: only 16-bit grayscale TIFF images are accepted."""
+    try:
+        pil_img = Image.open(io.BytesIO(file_bytes))
+    except Exception as exc:
+        raise ValueError(f"Image format validation failed: unable to read image bytes ({exc}).") from exc
+
+    img_format = (pil_img.format or "unknown").upper()
+    if img_format != "TIFF":
+        raise ValueError(
+            f"Image format validation failed: expected 16-bit grayscale TIFF, got format '{img_format}'."
+        )
+
+    img = np.array(pil_img)
+    if img.ndim != 2:
+        raise ValueError(
+            f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
+        )
+    if img.dtype != np.uint16:
+        raise ValueError(
+            f"Image format validation failed: expected 16-bit TIFF (uint16), got dtype '{img.dtype}'."
+        )
+    return img
+
+
+def _shrink_box(box, ratio=ROI_SHRINK_RATIO):
+    box_arr = np.array(box, dtype=np.float32)
+    center = np.mean(box_arr, axis=0, keepdims=True)
+    shrunk = center + (box_arr - center) * (1.0 - float(ratio))
+    return shrunk.astype(np.int32)
+
+
+def _mean_intensity_in_box(img_16bit, box, shrink_ratio=ROI_SHRINK_RATIO):
+    mask = np.zeros_like(img_16bit, dtype=np.uint8)
+    shrunk_box = _shrink_box(box, shrink_ratio)
+    cv2.drawContours(mask, [np.array(shrunk_box, dtype=np.int32)], 0, 255, -1)
+    pixel_values = img_16bit[mask == 255]
+    if len(pixel_values) == 0:
+        raise ValueError("ROI validation failed: no pixels inside shrunken ROI.")
+    return float(np.mean(pixel_values)), pixel_values
+
+
+def _validate_block_orientation(img_16bit, all_blocks):
+    """Validate SOP orientation: darkest side (10 mm) must be at block bottom."""
+    if len(all_blocks) == 0:
+        raise ValueError("Orientation validation failed: no blocks available for orientation check.")
+
+    candidate_blocks = [b for b in all_blocks if b.get("id") in (2, 4)]
+    if len(candidate_blocks) == 0:
+        candidate_blocks = all_blocks
+
+    inverted_votes = 0
+    checked = 0
+    h, w = img_16bit.shape[:2]
+
+    for block in candidate_blocks:
+        box = np.array(block["box"], dtype=np.int32)
+        x, y, bw, bh = cv2.boundingRect(box)
+        if bw <= 0 or bh <= 0:
+            continue
+
+        x0 = max(0, x)
+        y0 = max(0, y)
+        x1 = min(w, x + bw)
+        y1 = min(h, y + bh)
+        if x1 <= x0 or y1 <= y0:
+            continue
+
+        roi = img_16bit[y0:y1, x0:x1]
+        roi_mask = np.zeros(roi.shape, dtype=np.uint8)
+        shifted = box - np.array([x0, y0], dtype=np.int32)
+        cv2.fillPoly(roi_mask, [shifted], 255)
+
+        band = max(1, int((y1 - y0) * 0.2))
+        top_band = np.zeros_like(roi_mask)
+        bottom_band = np.zeros_like(roi_mask)
+        top_band[:band, :] = 255
+        bottom_band[-band:, :] = 255
+
+        top_mask = cv2.bitwise_and(roi_mask, top_band)
+        bottom_mask = cv2.bitwise_and(roi_mask, bottom_band)
+        top_vals = roi[top_mask == 255]
+        bottom_vals = roi[bottom_mask == 255]
+        if len(top_vals) == 0 or len(bottom_vals) == 0:
+            continue
+
+        checked += 1
+        top_mean = float(np.mean(top_vals))
+        bottom_mean = float(np.mean(bottom_vals))
+        if bottom_mean >= top_mean:
+            inverted_votes += 1
+
+    if checked == 0:
+        raise ValueError("Orientation validation failed: unable to sample top/bottom intensity from detected blocks.")
+    if inverted_votes > (checked / 2.0):
+        raise ValueError(
+            "Orientation validation failed: darkest 10 mm side is not at the bottom. "
+            "Upload image with correct orientation (10 mm darkest side at bottom) and retry."
+        )
 
 
 def _numpy_to_base64(img_array):
@@ -35,9 +148,7 @@ def _numpy_to_base64(img_array):
 def process_blocks(file_bytes, params):
     """Detect step-wedge reference blocks and infer full block layout (1..4)."""
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            return None
+        img_16bit = _load_and_validate_image(file_bytes)
 
         threshold_value = params.get("threshold_value", 55000)
         min_length_rectangular = params.get("min_length_rectangular", 1400)
@@ -100,8 +211,8 @@ def process_blocks(file_bytes, params):
                     "area": float(area),
                     "rectangularity": float(rectangularity),
                     "solidity": float(solidity),
-                }
-            )
+                    }
+                )
 
         if len(valid_blocks) > 1:
             filtered = []
@@ -125,90 +236,89 @@ def process_blocks(file_bytes, params):
             valid_blocks = filtered
 
         valid_blocks.sort(key=lambda c: c["center"][0])
-
-        all_blocks = []
-        if len(valid_blocks) >= 2:
-            block_2 = valid_blocks[0]
-            block_4 = valid_blocks[1]
-
-            x2 = block_2["center"][0]
-            x4 = block_4["center"][0]
-            x3_temp = (x2 + x4) // 2
-            dx = abs(((x4 - x3_temp) + (x3_temp - x2)) / 2)
-            x3 = x3_temp
-            x1 = x2 - dx
-
-            all_blocks.append(
-                {
-                    "id": 1,
-                    "center": (int(x1), block_2["center"][1]),
-                    "box": [
-                        [int(x1 - block_2["width"] / 2), int(block_2["center"][1] - block_2["height"] / 2)],
-                        [int(x1 + block_2["width"] / 2), int(block_2["center"][1] - block_2["height"] / 2)],
-                        [int(x1 + block_2["width"] / 2), int(block_2["center"][1] + block_2["height"] / 2)],
-                        [int(x1 - block_2["width"] / 2), int(block_2["center"][1] + block_2["height"] / 2)],
-                    ],
-                    "width": block_2["width"],
-                    "height": block_2["height"],
-                    "mean_value": 0.0,
-                    "rectangularity": block_2.get("rectangularity", 0.0),
-                    "classification": "Calculated",
-                    "type": "calculated",
-                }
+        if len(valid_blocks) < 3:
+            raise ValueError(
+                "Block detection failed: unable to establish Block 1/2/3 sequence. "
+                f"Detected valid contours: {len(valid_blocks)}."
             )
 
-            all_blocks.append(
-                {
-                    "id": 2,
-                    "center": block_2["center"],
-                    "box": block_2["box"],
-                    "width": block_2["width"],
-                    "height": block_2["height"],
-                    "mean_value": 0.0,
-                    "rectangularity": block_2.get("rectangularity", 0.0),
-                    "classification": "Detected",
-                    "type": "detected",
-                }
-            )
+        # New spatial sequence:
+        # 1) detect Block 1 and Block 3 (leftmost and rightmost)
+        block_1 = valid_blocks[0]
+        block_3 = valid_blocks[-1]
+        x1, y1 = block_1["center"]
+        x3, y3 = block_3["center"]
+        if x3 <= x1:
+            raise ValueError("Block geometry validation failed: Block 3 must be to the right of Block 1.")
 
-            all_blocks.append(
-                {
-                    "id": 3,
-                    "center": (int(x3), block_2["center"][1]),
-                    "box": [
-                        [int(x3 - block_2["width"] / 2), int(block_2["center"][1] - block_2["height"] / 2)],
-                        [int(x3 + block_2["width"] / 2), int(block_2["center"][1] - block_2["height"] / 2)],
-                        [int(x3 + block_2["width"] / 2), int(block_2["center"][1] + block_2["height"] / 2)],
-                        [int(x3 - block_2["width"] / 2), int(block_2["center"][1] + block_2["height"] / 2)],
-                    ],
-                    "width": block_2["width"],
-                    "height": block_2["height"],
-                    "mean_value": 0.0,
-                    "rectangularity": block_2.get("rectangularity", 0.0),
-                    "classification": "Calculated",
-                    "type": "calculated",
-                }
+        # 2) detect Block 2 in between Block 1 and Block 3
+        between = [b for b in valid_blocks[1:-1] if x1 < b["center"][0] < x3]
+        if len(between) == 0:
+            raise ValueError(
+                "Block detection failed: unable to detect Block 2 between Block 1 and Block 3. "
+                "Adjust block detection parameters in the UI and retry."
             )
+        midpoint = (x1 + x3) / 2.0
+        block_2 = min(between, key=lambda b: abs(b["center"][0] - midpoint))
+        x2, y2 = block_2["center"]
+        if not (x1 < x2 < x3):
+            raise ValueError("Block geometry validation failed: Block 2 is not spatially between Block 1 and Block 3.")
 
-            all_blocks.append(
-                {
-                    "id": 4,
-                    "center": block_4["center"],
-                    "box": block_4["box"],
-                    "width": block_4["width"],
-                    "height": block_4["height"],
-                    "mean_value": 0.0,
-                    "rectangularity": block_4.get("rectangularity", 0.0),
-                    "classification": "Detected",
-                    "type": "detected",
-                }
-            )
+        # 3) extrapolate Block 4 using spacing delta
+        dx12 = x2 - x1
+        dx23 = x3 - x2
+        dy12 = y2 - y1
+        dy23 = y3 - y2
+        dx_ref = int(round((dx12 + dx23) / 2.0))
+        dy_ref = int(round((dy12 + dy23) / 2.0))
+        if dx_ref <= 0:
+            raise ValueError("Block geometry validation failed: invalid x-spacing for Block 4 extrapolation.")
 
+        box3 = np.array(block_3["box"], dtype=np.int32)
+        box4 = box3 + np.array([dx_ref, dy_ref], dtype=np.int32)
+        center4 = (int(block_3["center"][0] + dx_ref), int(block_3["center"][1] + dy_ref))
+
+        def _create_block_dict(block_id, detection_type, block_dict=None, center=None, box=None):
+            if block_dict is not None:
+                b_center = block_dict["center"]
+                b_box = block_dict["box"]
+                width = block_dict["width"]
+                height = block_dict["height"]
+                rectangularity = block_dict.get("rectangularity", 0.0)
+            else:
+                b_center = center
+                b_box = box
+                width = block_3["width"]
+                height = block_3["height"]
+                rectangularity = block_3.get("rectangularity", 0.0)
+            return {
+                "id": block_id,
+                "center": (int(b_center[0]), int(b_center[1])),
+                "box": np.array(b_box, dtype=np.int32).tolist(),
+                "width": float(width),
+                "height": float(height),
+                "mean_value": 0.0,
+                "rectangularity": float(rectangularity),
+                "classification": "Detected" if detection_type == "detected" else "Calculated",
+                "type": detection_type,
+            }
+
+        all_blocks = [
+            _create_block_dict(1, "detected", block_dict=block_1),
+            _create_block_dict(2, "detected", block_dict=block_2),
+            _create_block_dict(3, "detected", block_dict=block_3),
+            _create_block_dict(4, "calculated", center=center4, box=box4),
+        ]
+
+        h, w = img_16bit.shape[:2]
         for block in all_blocks:
-            mask_sampling = np.zeros_like(img_16bit, dtype=np.uint8)
-            box_array = np.array(block["box"], dtype=np.int32)
-            cv2.drawContours(mask_sampling, [box_array], 0, 255, -1)
-            block["mean_value"] = float(cv2.mean(img_16bit, mask=mask_sampling)[0])
+            cx, cy = block["center"]
+            if cx < 0 or cy < 0 or cx >= w or cy >= h:
+                raise ValueError(
+                    f"Block geometry validation failed: Block {block['id']} center {block['center']} out of image bounds."
+                )
+            mean_value, _ = _mean_intensity_in_box(img_16bit, block["box"], ROI_SHRINK_RATIO)
+            block["mean_value"] = mean_value
 
         img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
         img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
@@ -229,25 +339,31 @@ def process_blocks(file_bytes, params):
             )
 
         results = []
-        for i, item in enumerate(valid_blocks):
-            mask_sampling = np.zeros_like(img_16bit, dtype=np.uint8)
-            box_array = np.array(item["box"], dtype=np.int32)
-            cv2.drawContours(mask_sampling, [box_array], 0, 255, -1)
-            mean_val = cv2.mean(img_16bit, mask=mask_sampling)[0]
+        for block in all_blocks:
             results.append(
                 {
-                    "id": i + 1,
-                    "center": item["center"],
-                    "box": item["box"],
-                    "width": item["width"],
-                    "height": item["height"],
-                    "longest_side": item["longest_side"],
-                    "shortest_side": item["shortest_side"],
-                    "mean_value": float(mean_val),
-                    "rectangularity": item["rectangularity"],
-                    "solidity": item["solidity"],
+                    "id": block["id"],
+                    "center": block["center"],
+                    "box": block["box"],
+                    "width": block["width"],
+                    "height": block["height"],
+                    "longest_side": max(block["width"], block["height"]),
+                    "shortest_side": min(block["width"], block["height"]),
+                    "mean_value": block["mean_value"],
+                    "rectangularity": block["rectangularity"],
+                    "solidity": None,
+                    "type": block["type"],
                 }
             )
+
+        if len(all_blocks) != 4:
+            raise ValueError(
+                "Block count validation failed: expected exactly 4 blocks for physics pipeline, "
+                f"found {len(all_blocks)} (detected contours used in sequence: {len(valid_blocks)}). "
+                "Adjust block detection parameters in the UI and retry."
+            )
+
+        _validate_block_orientation(img_16bit, all_blocks)
 
         return {
             "blocks": results,
@@ -258,12 +374,7 @@ def process_blocks(file_bytes, params):
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in process_blocks: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-        return None
+        raise ValueError(f"Block detection failed: {str(e)}") from e
 
 
 def analyze_block_histograms(file_bytes, all_blocks):
@@ -558,121 +669,110 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
       μ_coal = m + μ_acrylic
     """
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            return None
-
+        img_16bit = _load_and_validate_image(file_bytes)
         subdivision_data = subdivisions["subdivisions"]
+        expected_steps = 10
+        eps = 1e-9
 
         def _stats_for_block(block_id):
             block_subs = [s for s in subdivision_data if s["parent_block"] == block_id]
             block_subs = sorted(block_subs, key=lambda s: s["subdivision_id"])
             stats = []
             for sub in block_subs:
-                mask = np.zeros_like(img_16bit, dtype=np.uint8)
-                box_array = np.array(sub["box"], dtype=np.int32)
-                cv2.drawContours(mask, [box_array], 0, 255, -1)
-                pixel_values = img_16bit[mask == 255]
-                if len(pixel_values) == 0:
-                    continue
+                mean_val, pixel_values = _mean_intensity_in_box(img_16bit, sub["box"], ROI_SHRINK_RATIO)
                 stats.append(
                     {
                         "subdivision_id": sub["subdivision_id"],
-                        "mean": float(np.mean(pixel_values)),
+                        "mean": float(mean_val),
                         "median": float(np.median(pixel_values)),
                         "std": float(np.std(pixel_values)),
                     }
                 )
             return stats
 
-        block1_stats = _stats_for_block(1)
-        block2_stats = _stats_for_block(2)
-        block3_stats = _stats_for_block(3)
-        block4_stats = _stats_for_block(4)
+        block1_raw = _stats_for_block(1)  # Air
+        block2_raw = _stats_for_block(2)  # Coal
+        block3_raw = _stats_for_block(3)  # Air
+        block4_raw = _stats_for_block(4)  # Coal
 
-        # Preserve orientation checking logic by inferring whether the input is swapped.
-        # Candidate A: subdivision_id 1..10 maps to thickness 10..1 mm.
-        # Candidate B: subdivision_id 1..10 maps to thickness 1..10 mm.
-        def _orientation_score(air_stats, thicknesses):
-            if len(air_stats) < 2:
+        for block_id, stats in ((1, block1_raw), (2, block2_raw), (3, block3_raw), (4, block4_raw)):
+            if len(stats) != expected_steps:
+                raise ValueError(
+                    f"Block subdivision validation failed: expected {expected_steps} steps in Block {block_id}, "
+                    f"found {len(stats)}."
+                )
+
+        def _monotonic_decrease_score(values):
+            """Return 0..2 score where higher means stronger top->bottom intensity decrease."""
+            if len(values) < 2:
                 return -np.inf
-            y = np.array([s["mean"] for s in air_stats], dtype=float)
-            x = np.array(thicknesses[: len(y)], dtype=float)
-            slope = np.polyfit(x, y, 1)[0]
-            # For air, larger thickness should produce lower intensity => negative slope preferred.
-            return float(-slope)
+            diffs = np.diff(values)
+            return float(np.mean(diffs <= 0) + (1.0 if values[0] > values[-1] else 0.0))
 
-        normal_thickness = list(range(10, 0, -1))
-        reversed_thickness = list(range(1, 11))
+        b1_normal = np.array([s["mean"] for s in block1_raw], dtype=float)
+        b3_normal = np.array([s["mean"] for s in block3_raw], dtype=float)
+        score_normal = (_monotonic_decrease_score(b1_normal) + _monotonic_decrease_score(b3_normal)) / 2.0
+        b1_reversed = b1_normal[::-1]
+        b3_reversed = b3_normal[::-1]
+        score_reversed = (_monotonic_decrease_score(b1_reversed) + _monotonic_decrease_score(b3_reversed)) / 2.0
 
-        score_normal = np.mean(
-            [
-                _orientation_score(block2_stats, normal_thickness),
-                _orientation_score(block4_stats, normal_thickness),
-            ]
-        )
-        score_reversed = np.mean(
-            [
-                _orientation_score(block2_stats, reversed_thickness),
-                _orientation_score(block4_stats, reversed_thickness),
-            ]
-        )
+        reverse_orientation = score_reversed > score_normal
+        orientation = "reversed" if reverse_orientation else "normal"
 
-        if score_reversed > score_normal:
-            thickness_by_index = reversed_thickness
-            orientation = "reversed"
-        else:
-            thickness_by_index = normal_thickness
-            orientation = "normal"
-
-        def _attach_thickness(stats):
+        def _orient_stats(stats):
+            ordered = list(reversed(stats)) if reverse_orientation else list(stats)
+            thicknesses = list(range(10, 0, -1))
             out = []
-            for i, s in enumerate(stats):
-                t = thickness_by_index[i] if i < len(thickness_by_index) else None
-                row = dict(s)
-                row["x_coal_mm"] = t
-                out.append(row)
+            for idx, row in enumerate(ordered):
+                row_out = dict(row)
+                row_out["x_coal_mm"] = thicknesses[idx]
+                out.append(row_out)
             return out
 
-        block1_stats = _attach_thickness(block1_stats)
-        block2_stats = _attach_thickness(block2_stats)
-        block3_stats = _attach_thickness(block3_stats)
-        block4_stats = _attach_thickness(block4_stats)
+        block1_stats = _orient_stats(block1_raw)
+        block2_stats = _orient_stats(block2_raw)
+        block3_stats = _orient_stats(block3_raw)
+        block4_stats = _orient_stats(block4_raw)
 
-        # I0 definition from AIR blocks (block 2/4) at x=10 mm.
-        # We use the darkest (minimum) value to follow the requirement's
-        # conservative reference for the x=10 mm air step.
-        air_x10_values = [s["mean"] for s in (block2_stats + block4_stats) if s.get("x_coal_mm") == 10]
-        if len(air_x10_values) == 0:
-            return None
-        i0_air = float(np.min(air_x10_values))
+        air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
+        air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        eps = 1e-9
-        if i0_air <= eps:
+        air1_decrease_score = _monotonic_decrease_score(air1)
+        air3_decrease_score = _monotonic_decrease_score(air3)
+        if air1_decrease_score < AIR_GRADIENT_MIN_SCORE or air3_decrease_score < AIR_GRADIENT_MIN_SCORE:
+            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+
+        rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)
+        if float(np.max(rel_diff)) > AIR_STEP_MAX_REL_DIFF or float(np.mean(rel_diff)) > AIR_STEP_MEAN_REL_DIFF:
+            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+
+        def _has_spike(values):
+            diffs = np.diff(values)
+            if len(diffs) < 3:
+                return False
+            curvature = np.abs(np.diff(diffs))
+            scale = np.std(diffs) + eps
+            return bool(np.max(curvature) > SPIKE_CURVATURE_SIGMA_MULTIPLIER * scale)
+
+        if _has_spike(air1) or _has_spike(air3):
+            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+
+        # Step-wise air reference from Block 1 and Block 3.
+        air_ref = (air1 + air3) / 2.0
+        i0_air_x10 = float(air_ref[0])
+        if i0_air_x10 <= eps:
             raise ValueError("Invalid I0 reference: air intensity at x=10 is too small.")
 
         def _compute_mu_series(coal_stats):
-            filtered = [s for s in coal_stats if s.get("x_coal_mm") is not None]
-            filtered = sorted(filtered, key=lambda s: s["x_coal_mm"], reverse=True)
-
-            x = np.array([float(s["x_coal_mm"]) for s in filtered], dtype=float)
-            i_t = np.array([max(float(s["mean"]), eps) for s in filtered], dtype=float)
-            ratio = np.clip(i_t / i0_air, eps, None)
-
-            # Beer-Lambert transform to linear form.
+            x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
+            i_t = np.array([max(float(s["mean"]), eps) for s in coal_stats], dtype=float)
+            i0 = np.clip(air_ref, eps, None)
+            ratio = np.clip(i_t / i0, eps, None)
             y = -np.log(ratio)
-
-            # Linear regression using numpy.polyfit(x, y, 1): slope = μ_coal.
             slope, intercept = np.polyfit(x, y, 1)
-            # intercept is the constant acrylic attenuation term (14 * μ_acrylic).
             mu_acrylic = intercept / 14.0
             mu_coal = slope + mu_acrylic
-
-            # Per-step coal μ reconstructed from fitted acrylic coefficient:
-            # μ_coal(x) = [y - μ_acrylic*(14 - x)] / x
-            # This is used for the requested μ-vs-thickness plot.
             mu_point = (y - (mu_acrylic * (14.0 - x))) / np.clip(x, eps, None)
-
             return {
                 "x": x,
                 "intensity": i_t,
@@ -684,25 +784,16 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
                 "intercept": float(intercept),
             }
 
-        block1_model = _compute_mu_series(block1_stats)
-        block3_model = _compute_mu_series(block3_stats)
+        block2_model = _compute_mu_series(block2_stats)
+        block4_model = _compute_mu_series(block4_stats)
 
-        # Air reference curve (average of block 2 and 4 means by thickness).
-        air_by_t = {}
-        for s in block2_stats + block4_stats:
-            t = s.get("x_coal_mm")
-            if t is None:
-                continue
-            air_by_t.setdefault(t, []).append(float(s["mean"]))
+        air_t = np.array([s["x_coal_mm"] for s in block1_stats], dtype=float)
+        air_mean = air_ref.tolist()
 
-        air_t = sorted(air_by_t.keys(), reverse=True)
-        air_mean = [float(np.mean(air_by_t[t])) for t in air_t]
-
-        # Plot 1: Intensity vs subdivisions (Block 1, Block 3, Air)
         fig1, ax1 = plt.subplots(figsize=(12, 6))
-        ax1.plot(block1_model["x"], block1_model["intensity"], marker="o", linewidth=2, label="Block 1 (Coal)")
-        ax1.plot(block3_model["x"], block3_model["intensity"], marker="s", linewidth=2, label="Block 3 (Coal)")
-        ax1.plot(air_t, air_mean, marker="^", linewidth=2, label="Air (Blocks 2 & 4 avg)")
+        ax1.plot(block2_model["x"], block2_model["intensity"], marker="o", linewidth=2, label="Block 2 (Coal)")
+        ax1.plot(block4_model["x"], block4_model["intensity"], marker="s", linewidth=2, label="Block 4 (Coal)")
+        ax1.plot(air_t, air_mean, marker="^", linewidth=2, label="Air Ref (Block 1 & 3 avg)")
         ax1.set_xlabel("Thickness x (mm)", fontweight="bold")
         ax1.set_ylabel("Mean Intensity (I)", fontweight="bold")
         ax1.set_title("Intensity vs Subdivision Thickness", fontweight="bold")
@@ -718,14 +809,13 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         intensity_plot_image = base64.b64encode(buf1.getvalue()).decode("utf-8")
         plt.close(fig1)
 
-        # Plot 2: μ vs thickness (Block 1 and Block 3)
         fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(block1_model["x"], block1_model["mu_point"], marker="o", linewidth=2, label="Block 1 μ(x)")
-        ax2.plot(block3_model["x"], block3_model["mu_point"], marker="s", linewidth=2, label="Block 3 μ(x)")
+        ax2.plot(block2_model["x"], block2_model["mu_point"], marker="o", linewidth=2, label="Block 2 μ(x)")
+        ax2.plot(block4_model["x"], block4_model["mu_point"], marker="s", linewidth=2, label="Block 4 μ(x)")
         ax2.set_xlabel("Thickness x (mm)", fontweight="bold")
         ax2.set_ylabel("μ (1/mm)", fontweight="bold")
         ax2.set_title(
-            f"Coal μ vs Thickness (fit μ1={block1_model['mu_coal']:.5f}, μ3={block3_model['mu_coal']:.5f})",
+            f"Coal μ vs Thickness (fit μ2={block2_model['mu_coal']:.5f}, μ4={block4_model['mu_coal']:.5f})",
             fontweight="bold",
         )
         ax2.set_xticks(list(range(10, 0, -1)))
@@ -742,15 +832,19 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
         summary = {
             "orientation": orientation,
-            "i0_air_x10": i0_air,
-            "mu_block1": block1_model["mu_coal"],
-            "mu_block3": block3_model["mu_coal"],
-            "mu_acrylic_block1": block1_model["mu_acrylic"],
-            "mu_acrylic_block3": block3_model["mu_acrylic"],
-            "slope_block1": block1_model["slope"],
-            "slope_block3": block3_model["slope"],
-            "intercept_block1": block1_model["intercept"],
-            "intercept_block3": block3_model["intercept"],
+            "i0_air_x10": i0_air_x10,
+            "mu_block2": block2_model["mu_coal"],
+            "mu_block4": block4_model["mu_coal"],
+            "mu_acrylic_block2": block2_model["mu_acrylic"],
+            "mu_acrylic_block4": block4_model["mu_acrylic"],
+            "slope_block2": block2_model["slope"],
+            "slope_block4": block4_model["slope"],
+            "intercept_block2": block2_model["intercept"],
+            "intercept_block4": block4_model["intercept"],
+            # Backward compatibility aliases for callers that still expect
+            # the old numbering where coal curves were exposed as block1/block3.
+            "mu_block1": block2_model["mu_coal"],
+            "mu_block3": block4_model["mu_coal"],
         }
 
         return {
@@ -758,38 +852,51 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
             "block2_stats": block2_stats,
             "block3_stats": block3_stats,
             "block4_stats": block4_stats,
+            "block2_model": {
+                "x": block2_model["x"].tolist(),
+                "y": block2_model["y"].tolist(),
+                "mu_point": block2_model["mu_point"].tolist(),
+                "mu_coal": block2_model["mu_coal"],
+                "mu_acrylic": block2_model["mu_acrylic"],
+                "slope": block2_model["slope"],
+                "intercept": block2_model["intercept"],
+            },
+            "block4_model": {
+                "x": block4_model["x"].tolist(),
+                "y": block4_model["y"].tolist(),
+                "mu_point": block4_model["mu_point"].tolist(),
+                "mu_coal": block4_model["mu_coal"],
+                "mu_acrylic": block4_model["mu_acrylic"],
+                "slope": block4_model["slope"],
+                "intercept": block4_model["intercept"],
+            },
+            # Compatibility aliases for callers expecting old keys.
             "block1_model": {
-                "x": block1_model["x"].tolist(),
-                "y": block1_model["y"].tolist(),
-                "mu_point": block1_model["mu_point"].tolist(),
-                "mu_coal": block1_model["mu_coal"],
-                "mu_acrylic": block1_model["mu_acrylic"],
-                "slope": block1_model["slope"],
-                "intercept": block1_model["intercept"],
+                "x": block2_model["x"].tolist(),
+                "y": block2_model["y"].tolist(),
+                "mu_point": block2_model["mu_point"].tolist(),
+                "mu_coal": block2_model["mu_coal"],
+                "mu_acrylic": block2_model["mu_acrylic"],
+                "slope": block2_model["slope"],
+                "intercept": block2_model["intercept"],
             },
             "block3_model": {
-                "x": block3_model["x"].tolist(),
-                "y": block3_model["y"].tolist(),
-                "mu_point": block3_model["mu_point"].tolist(),
-                "mu_coal": block3_model["mu_coal"],
-                "mu_acrylic": block3_model["mu_acrylic"],
-                "slope": block3_model["slope"],
-                "intercept": block3_model["intercept"],
+                "x": block4_model["x"].tolist(),
+                "y": block4_model["y"].tolist(),
+                "mu_point": block4_model["mu_point"].tolist(),
+                "mu_coal": block4_model["mu_coal"],
+                "mu_acrylic": block4_model["mu_acrylic"],
+                "slope": block4_model["slope"],
+                "intercept": block4_model["intercept"],
             },
             "intensity_plot_image": intensity_plot_image,
             "mu_plot_image": mu_plot_image,
-            # Backward compatibility with current UI key.
             "comparison_image": mu_plot_image,
             "summary": summary,
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in compare_blocks_1_vs_3: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-        return None
+        raise ValueError(f"Block Beer-Lambert analysis failed: {str(e)}") from e
 
 
 __all__ = [

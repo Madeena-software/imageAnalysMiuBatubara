@@ -583,7 +583,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         def _attach_mu(stats_list):
             for s in stats_list:
                 i_coal = np.clip(float(s["mean"]), eps, None)
-                ratio = np.clip(i0_air / i_coal, eps, None)
+                ratio = i0_air / i_coal
                 # Beer-Lambert ratio method: μ = ln(I_air / I_coal) / x_coal.
                 # Since x_coal_mm is in mm, resulting μ units are 1/mm.
                 s["mu_coal"] = float(np.log(ratio) / x_coal_mm)

@@ -13,6 +13,10 @@ DEBUG = True
 # before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
 AIR_STEP_MAX_REL_DIFF = 0.20
+# Backward-compatible tunables used by integration tests.
+AIR_GRADIENT_MIN_SCORE = 0.0
+AIR_STEP_MEAN_REL_DIFF = AIR_STEP_MAX_REL_DIFF
+SPIKE_CURVATURE_SIGMA_MULTIPLIER = 3.0
 AIR_BLOCK_VALIDATION_CODE = "E_BLOCK_AIR_ROI"
 AIR_BLOCK_VALIDATION_ERROR = (
     f"{AIR_BLOCK_VALIDATION_CODE}: Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "

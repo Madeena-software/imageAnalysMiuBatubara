@@ -504,11 +504,16 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
     Beer-Lambert analysis for step-wedge blocks.
 
     Linear model:
-      -ln(It / I0) = μ_coal * x_coal + (μ_acrylic * 4)
+      -ln(It / I0) = μ_coal*x_coal + μ_acrylic*(14 - x_coal)
 
-    We fit y = m*x + b using numpy.polyfit(x, y, 1), where m is μ_coal.
-    The intercept b is the fixed acrylic contribution (μ_acrylic * 4 mm),
-    because acrylic thickness is constant for all subdivisions.
+    Rearranged:
+      y = m*x + c
+      m = μ_coal - μ_acrylic
+      c = 14*μ_acrylic
+
+    We fit y = m*x + c with numpy.polyfit(x, y, 1), then recover:
+      μ_acrylic = c / 14
+      μ_coal = m + μ_acrylic
     """
     try:
         img_16bit = _load_image(file_bytes)
@@ -617,18 +622,23 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
             # Linear regression using numpy.polyfit(x, y, 1): slope = μ_coal.
             slope, intercept = np.polyfit(x, y, 1)
-            # intercept is the constant acrylic attenuation term (μ_acrylic * 4 mm).
+            # intercept is the constant acrylic attenuation term (14 * μ_acrylic).
+            mu_acrylic = intercept / 14.0
+            mu_coal = slope + mu_acrylic
 
-            # Per-step apparent μ for visualization only.
-            # The fitted μ_coal slope from polyfit is the physically estimated coefficient.
-            mu_point = y / np.clip(x, eps, None)
+            # Per-step coal μ reconstructed from fitted acrylic coefficient:
+            # μ_coal(x) = [y - μ_acrylic*(14 - x)] / x
+            # This is used for the requested μ-vs-thickness plot.
+            mu_point = (y - (mu_acrylic * (14.0 - x))) / np.clip(x, eps, None)
 
             return {
                 "x": x,
                 "intensity": i_t,
                 "y": y,
                 "mu_point": mu_point,
-                "mu_coal": float(slope),
+                "mu_coal": float(mu_coal),
+                "mu_acrylic": float(mu_acrylic),
+                "slope": float(slope),
                 "intercept": float(intercept),
             }
 
@@ -668,8 +678,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
         # Plot 2: μ vs thickness (Block 1 and Block 3)
         fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(block1_model["x"], block1_model["mu_point"], marker="o", linewidth=2, label="Block 1 μ(x) apparent")
-        ax2.plot(block3_model["x"], block3_model["mu_point"], marker="s", linewidth=2, label="Block 3 μ(x) apparent")
+        ax2.plot(block1_model["x"], block1_model["mu_point"], marker="o", linewidth=2, label="Block 1 μ(x)")
+        ax2.plot(block3_model["x"], block3_model["mu_point"], marker="s", linewidth=2, label="Block 3 μ(x)")
         ax2.set_xlabel("Thickness x (mm)", fontweight="bold")
         ax2.set_ylabel("μ (1/mm)", fontweight="bold")
         ax2.set_title(
@@ -693,6 +703,10 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
             "i0_air_x10": i0_air,
             "mu_block1": block1_model["mu_coal"],
             "mu_block3": block3_model["mu_coal"],
+            "mu_acrylic_block1": block1_model["mu_acrylic"],
+            "mu_acrylic_block3": block3_model["mu_acrylic"],
+            "slope_block1": block1_model["slope"],
+            "slope_block3": block3_model["slope"],
             "intercept_block1": block1_model["intercept"],
             "intercept_block3": block3_model["intercept"],
         }
@@ -707,6 +721,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
                 "y": block1_model["y"].tolist(),
                 "mu_point": block1_model["mu_point"].tolist(),
                 "mu_coal": block1_model["mu_coal"],
+                "mu_acrylic": block1_model["mu_acrylic"],
+                "slope": block1_model["slope"],
                 "intercept": block1_model["intercept"],
             },
             "block3_model": {
@@ -714,6 +730,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
                 "y": block3_model["y"].tolist(),
                 "mu_point": block3_model["mu_point"].tolist(),
                 "mu_coal": block3_model["mu_coal"],
+                "mu_acrylic": block3_model["mu_acrylic"],
+                "slope": block3_model["slope"],
                 "intercept": block3_model["intercept"],
             },
             "intensity_plot_image": intensity_plot_image,

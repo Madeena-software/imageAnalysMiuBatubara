@@ -397,7 +397,7 @@ def compare_diagonals(file_bytes, grid_results):
 
     Where:
     - I_air is taken from the average of the four main-diagonal air circles
-    - x_coal = 2 mm (coal thickness only)
+    - x_coal = 6 mm (coal thickness only)
     - Acrylic attenuation cancels out because both paths include identical acrylic layers.
     """
     try:
@@ -448,7 +448,7 @@ def compare_diagonals(file_bytes, grid_results):
         # Unit is pixel intensity from the 16-bit image.
         i0_air = float(np.mean([s["mean"] for s in diagonal_stats]))
         # Coal thickness used in ratio method, in millimeters.
-        x_coal_mm = 2.0
+        x_coal_mm = 6.0
         eps = 1e-9
         if i0_air <= eps:
             raise ValueError("Invalid I0 reference: diagonal air intensity is too small.")

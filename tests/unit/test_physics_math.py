@@ -131,6 +131,7 @@ def test_gradient_validation_raises_for_inverted_air(monkeypatch):
 
 @pytest.mark.unit
 def test_spike_validation_raises_for_air_reference_spike(monkeypatch):
+    # Intentional air-reference spike at step 7 (50000 after 42000).
     air_spike = np.array([52000, 50000, 48000, 46000, 44000, 42000, 50000, 36000, 33000, 30500], dtype=float)
     air_ref = np.array([51800, 49800, 47800, 45200, 42800, 40200, 37800, 35200, 32800, 30400], dtype=float)
     coal = np.array([41000, 39000, 36500, 34000, 31500, 29000, 26500, 24000, 21500, 19500], dtype=float)

@@ -818,6 +818,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
                     return False
                 limit = float(np.mean(curvature) + (spike_curvature_sigma_multiplier * std_curvature))
             else:
+                # Use robust sigma from MAD (instead of direct std) to reduce sensitivity
+                # to outliers while still flagging genuine curvature spikes.
                 # 1.4826 * MAD approximates standard deviation for normal-like distributions.
                 robust_sigma = 1.4826 * mad_curvature
                 limit = median_curvature + (spike_curvature_sigma_multiplier * robust_sigma)

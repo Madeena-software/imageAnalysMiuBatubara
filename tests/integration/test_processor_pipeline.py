@@ -50,8 +50,8 @@ def _run_with_mock_dom(run_callable):
         try:
             run_callable()
             error_el.innerText = ""
-        except Exception as exc:  # pragma: no cover - assertion handles this branch
-            error_el.innerText = str(exc)
+        except Exception:  # pragma: no cover - assertion handles this branch
+            error_el.innerText = "pipeline-exception"
 
     return mock_document, error_el, success_el
 

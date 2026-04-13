@@ -57,7 +57,7 @@ def browser_page():
 
         def on_console(msg):
             text = msg.text or ""
-            if msg.type == "error" or "Traceback" in text or "Error processing image" in text:
+            if msg.type == "error" or ("Traceback" in text or "Error processing image" in text):
                 messages["console_errors"].append(text)
 
         page.on("console", on_console)

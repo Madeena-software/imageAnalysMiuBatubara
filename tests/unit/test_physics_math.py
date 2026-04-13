@@ -25,8 +25,6 @@ def test_circle_ratio_method_mu_formula(monkeypatch):
             radius = 12
             if row == col or (row + col) == 3:
                 val = i_air
-            elif row < col:
-                val = i_coal
             else:
                 val = i_coal
             cv2.circle(img, center, radius, int(val), -1)

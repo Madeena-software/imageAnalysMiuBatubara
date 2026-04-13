@@ -5,15 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Image Analysis MIU Batubara</title>
   <script>
-    const currentPath = window.location.pathname;
-    const withoutIndex = currentPath.endsWith('index.html')
-      ? currentPath.slice(0, -'index.html'.length)
-      : currentPath;
-    const basePath = withoutIndex.endsWith('/') ? withoutIndex : `${withoutIndex}/`;
-    window.location.replace(`${basePath}public/image-analysis-miu-batubara/`);
+    const targetUrl = new URL('./public/image-analysis-miu-batubara/', window.location.href);
+    window.location.replace(targetUrl.href);
   </script>
 </head>
 <body>
-  <p>Redirecting to app... <a href="./public/image-analysis-miu-batubara/">Open manually</a></p>
+  <p>Redirecting to app... <a id="manual-open-link" href="./public/image-analysis-miu-batubara/">Open manually</a></p>
+  <script>
+    const manualLink = document.getElementById('manual-open-link');
+    if (manualLink) {
+      manualLink.href = new URL('./public/image-analysis-miu-batubara/', window.location.href).href;
+    }
+  </script>
 </body>
 </html>

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 
 pytestmark = [pytest.mark.e2e]
@@ -113,9 +113,22 @@ def test_circle_detection_ui_flow(e2e_base_url, browser_page):
     _assert_error_container_empty(page)
 
     _assert_data_img_visible(page, "#histogramImage img")
-    _assert_data_img_visible(page, "#diagonalComparison img")
+    _assert_data_img_visible(page, "#muPlotImage")
     _assert_parent_details_open(page, "#histogramImage")
-    _assert_parent_details_open(page, "#diagonalComparison")
+    _assert_parent_details_open(page, "#circleFinalMuPlot")
+
+    expect(page.locator("#muPlotImage")).to_be_visible()
+    mu_src = page.locator("#muPlotImage").get_attribute("src")
+    assert mu_src is not None and mu_src.startswith("data:image/png;base64,")
+    assert len(mu_src) > len("data:image/png;base64,")
+
+    expect(page.locator("#diagonalSummary")).to_be_visible()
+    summary_text = (page.locator("#diagonalSummary").text_content() or "").strip()
+    assert summary_text != ""
+
+    expect(page.locator(".export-section")).to_be_visible()
+    expect(page.locator("#exportCirclePdfBtn")).to_be_visible()
+    expect(page.locator("#exportCircleImagesBtn")).to_be_visible()
 
     _assert_no_runtime_errors(messages)
 

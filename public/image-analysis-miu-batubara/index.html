@@ -1578,15 +1578,29 @@
             histogram_div = document.getElementById('histogramImage')
             histogram_div.innerHTML = f'<img src="data:image/png;base64,{histogram_result["histogram_image"]}" alt="Histogram Analysis" style="max-width: 100%; border-radius: 10px;" />'
 
+        def to_data_uri_png(image_value):
+            """Normalize base64/URI plot values into a PNG data URI."""
+            if image_value is None:
+                return ""
+            value = str(image_value).strip()
+            if value.startswith("data:image/png;base64,"):
+                return value
+            return f"data:image/png;base64,{value}"
+
         def display_diagonal_results(diagonal_result):
             """Display diagonal comparison results"""
             intensity_div = document.getElementById('circleFinalIntensityPlot')
             if 'intensity_plot_image' in diagonal_result:
-                intensity_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["intensity_plot_image"]}" alt="Circle Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                intensity_src = to_data_uri_png(diagonal_result["intensity_plot_image"])
+                intensity_div.innerHTML = f'<img id="intensityPlotImage" src="{intensity_src}" alt="Circle Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
 
             mu_div = document.getElementById('circleFinalMuPlot')
             if 'mu_plot_image' in diagonal_result:
-                mu_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["mu_plot_image"]}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                mu_src = to_data_uri_png(diagonal_result["mu_plot_image"])
+                mu_div.innerHTML = f'<img id="muPlotImage" src="{mu_src}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
+            elif 'comparison_image' in diagonal_result:
+                mu_src = to_data_uri_png(diagonal_result["comparison_image"])
+                mu_div.innerHTML = f'<img id="muPlotImage" src="{mu_src}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
             
             summary = diagonal_result['summary']
             summary_div = document.getElementById('diagonalSummary')
@@ -1711,8 +1725,10 @@
             const selectors = [
                 '#resultsSection .result-image',
                 '#resultsSection .stats-section',
+                '#resultsSection .final-plots-section',
                 '#blockResultsSection .result-image',
-                '#blockResultsSection .stats-section'
+                '#blockResultsSection .stats-section',
+                '#blockResultsSection .final-plots-section'
             ];
 
             document.querySelectorAll(selectors.join(',')).forEach((section, idx) => {
@@ -1726,7 +1742,7 @@
                 const details = document.createElement('details');
                 details.className = 'collapsible-panel';
                 details.classList.add(section.classList.contains('result-image') ? 'result-panel' : 'stats-panel');
-                details.open = false;
+                details.open = true;
 
                 const summary = document.createElement('summary');
                 summary.textContent = title;

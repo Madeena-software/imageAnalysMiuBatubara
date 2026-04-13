@@ -235,7 +235,7 @@ def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
             raise ValueError(
                 "Circle anchor validation failed: expected exactly 4 detected anchor circles "
                 f"for diagonal extrapolation, found {detected_count}. "
-                "Adjust Threshold, Min Diameter, and Max Diameter, then retry."
+                "Adjust circle detection parameters in the UI and retry."
             )
         if grid_size is None:
             grid_size = 4
@@ -463,7 +463,7 @@ def compare_diagonals(file_bytes, grid_results):
             raise ValueError(
                 "Circle count validation failed: expected exactly 16 circles before Beer-Lambert physics "
                 f"calculation, found {circle_count}. "
-                "Adjust Threshold, Min Diameter, and Max Diameter, then retry."
+                "Adjust circle detection parameters in the UI and retry."
             )
 
         diagonal_items = []

@@ -335,7 +335,7 @@ def process_blocks(file_bytes, params):
             raise ValueError(
                 "Block count validation failed: expected exactly 4 blocks for physics pipeline, "
                 f"found {len(all_blocks)} (detected contours: {len(results)}). "
-                "Adjust block threshold/length filters and retry."
+                "Adjust block detection parameters in the UI and retry."
             )
 
         _validate_block_orientation(img_16bit, all_blocks)

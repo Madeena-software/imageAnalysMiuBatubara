@@ -288,6 +288,23 @@ def analyze_grid_histograms(file_bytes, grid_results):
         grid_size = max(max_row, max_col) + 1
 
         grid_lookup = {(item["grid_pos"][0], item["grid_pos"][1]): item for item in grid_data}
+        measured_pixels = {}
+        global_min = None
+        global_max = None
+
+        # Collect all pixel distributions first so every subplot can use the same
+        # x-axis range for fair visual comparison across positions.
+        for pos, item in grid_lookup.items():
+            mask = np.zeros_like(img_16bit, dtype=np.uint8)
+            cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
+            pixel_values = img_16bit[mask == 255]
+            if len(pixel_values) == 0:
+                continue
+            measured_pixels[pos] = pixel_values
+            local_min = float(np.min(pixel_values))
+            local_max = float(np.max(pixel_values))
+            global_min = local_min if global_min is None else min(global_min, local_min)
+            global_max = local_max if global_max is None else max(global_max, local_max)
 
         fig_size = max(12, grid_size * 4)
         fig, axes = plt.subplots(grid_size, grid_size, figsize=(fig_size, fig_size))
@@ -306,7 +323,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
             for col in range(grid_size):
                 ax = axes[row, col]
                 grid_pos_id = row * grid_size + col + 1
-                if (row, col) not in grid_lookup:
+                if (row, col) not in measured_pixels:
                     ax.text(
                         0.5,
                         0.5,
@@ -323,9 +340,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
                     continue
 
                 item = grid_lookup[(row, col)]
-                mask = np.zeros_like(img_16bit, dtype=np.uint8)
-                cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
-                pixel_values = img_16bit[mask == 255]
+                pixel_values = measured_pixels[(row, col)]
 
                 mean_val = float(np.mean(pixel_values))
                 median_val = float(np.median(pixel_values))
@@ -359,6 +374,12 @@ def analyze_grid_histograms(file_bytes, grid_results):
                 ax.set_title(f"Pos {grid_pos_id} [{row},{col}]", fontsize=10, fontweight="bold")
                 ax.set_xlabel("Pixel Value (16-bit)", fontsize=8)
                 ax.set_ylabel("Frequency", fontsize=8)
+                if global_min is not None and global_max is not None:
+                    if global_max == global_min:
+                        ax.set_xlim([global_min - 0.5, global_max + 0.5])
+                    else:
+                        pad = (global_max - global_min) * 0.02
+                        ax.set_xlim([global_min - pad, global_max + pad])
                 ax.legend(fontsize=7, loc="upper right")
                 ax.grid(True, alpha=0.3)
 

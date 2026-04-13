@@ -273,15 +273,30 @@ def analyze_block_histograms(file_bytes, all_blocks):
         if img_16bit is None:
             return None
 
+        # First pass: collect all block pixel distributions to establish one shared
+        # x-axis range for all block histogram subplots.
+        all_pixel_values = []
+        global_min = None
+        global_max = None
+        for block in all_blocks:
+            box = np.array(block["box"], dtype=np.int32)
+            mask = np.zeros_like(img_16bit, dtype=np.uint8)
+            cv2.drawContours(mask, [box], 0, 255, -1)
+            pixel_values = img_16bit[mask == 255]
+            all_pixel_values.append(pixel_values)
+            if len(pixel_values) == 0:
+                continue
+            local_min = float(np.min(pixel_values))
+            local_max = float(np.max(pixel_values))
+            global_min = local_min if global_min is None else min(global_min, local_min)
+            global_max = local_max if global_max is None else max(global_max, local_max)
+
         fig, axes = plt.subplots(2, 2, figsize=(12, 10))
         axes = axes.flatten()
         fig.suptitle("Histogram Analysis for Each Block", fontsize=14, fontweight="bold")
 
         for idx, block in enumerate(all_blocks):
-            box = np.array(block["box"], dtype=np.int32)
-            mask = np.zeros_like(img_16bit, dtype=np.uint8)
-            cv2.drawContours(mask, [box], 0, 255, -1)
-            pixel_values = img_16bit[mask == 255]
+            pixel_values = all_pixel_values[idx] if idx < len(all_pixel_values) else np.array([])
             if len(pixel_values) == 0:
                 continue
 
@@ -311,6 +326,12 @@ def analyze_block_histograms(file_bytes, all_blocks):
             )
             ax.set_xlabel("Pixel Value", fontsize=9)
             ax.set_ylabel("Frequency", fontsize=9)
+            if global_min is not None and global_max is not None:
+                if global_max == global_min:
+                    ax.set_xlim([global_min - 0.5, global_max + 0.5])
+                else:
+                    pad = (global_max - global_min) * 0.02
+                    ax.set_xlim([global_min - pad, global_max + pad])
             ax.legend(fontsize=8, loc="upper right")
             ax.grid(True, alpha=0.3)
 
@@ -435,6 +456,24 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
         if len(block_subs) == 0:
             return None
 
+        # First pass: collect subdivision pixel distributions and compute one shared
+        # x-axis range so all subplot histograms are directly comparable.
+        all_pixel_values = []
+        global_min = None
+        global_max = None
+        for sub in block_subs:
+            box = np.array(sub["box"], dtype=np.int32)
+            mask = np.zeros_like(img_16bit, dtype=np.uint8)
+            cv2.drawContours(mask, [box], 0, 255, -1)
+            pixel_values = img_16bit[mask == 255]
+            all_pixel_values.append(pixel_values)
+            if len(pixel_values) == 0:
+                continue
+            local_min = float(np.min(pixel_values))
+            local_max = float(np.max(pixel_values))
+            global_min = local_min if global_min is None else min(global_min, local_min)
+            global_max = local_max if global_max is None else max(global_max, local_max)
+
         fig, axes = plt.subplots(2, 5, figsize=(20, 8))
         axes = axes.flatten()
         fig.suptitle(
@@ -444,10 +483,7 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
         )
 
         for idx, sub in enumerate(block_subs):
-            box = np.array(sub["box"], dtype=np.int32)
-            mask = np.zeros_like(img_16bit, dtype=np.uint8)
-            cv2.drawContours(mask, [box], 0, 255, -1)
-            pixel_values = img_16bit[mask == 255]
+            pixel_values = all_pixel_values[idx] if idx < len(all_pixel_values) else np.array([])
             if len(pixel_values) == 0:
                 continue
 
@@ -470,6 +506,12 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
             ax.set_title(f'Sub {sub["subdivision_id"]}', fontsize=10, fontweight="bold")
             ax.set_xlabel("Pixel Value", fontsize=8)
             ax.set_ylabel("Frequency", fontsize=8)
+            if global_min is not None and global_max is not None:
+                if global_max == global_min:
+                    ax.set_xlim([global_min - 0.5, global_max + 0.5])
+                else:
+                    pad = (global_max - global_min) * 0.02
+                    ax.set_xlim([global_min - pad, global_max + pad])
             ax.legend(fontsize=7, loc="upper right")
             ax.grid(True, alpha=0.3)
 

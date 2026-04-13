@@ -1082,6 +1082,9 @@
                             <button type="button" class="export-btn secondary" id="exportBlockImagesBtn">
                                 🖼️ Download Images
                             </button>
+                            <button type="button" class="export-btn" id="exportBlockCsvBtn">
+                                ⬇️ Export CSV
+                            </button>
                         </div>
                     </details>
                 </details>
@@ -2732,6 +2735,58 @@
                 }, index * 500);
             });
         }
+        
+        // CSV Export Helpers
+        function tableToCsv(tableData) {
+            const escapeCell = (s) => {
+                if (s === null || s === undefined) return '';
+                const str = String(s).replace(/\r?\n/g, ' ');
+                if (/[",\n]/.test(str)) return '"' + str.replace(/"/g, '""') + '"';
+                return str;
+            };
+            return tableData.map(row => row.map(escapeCell).join(',')).join('\r\n');
+        }
+
+        function exportBlockResultsToCsv() {
+            const matrixTable = getTableDataFromElement('blockAttenuationMatrix');
+            const fitTable = getTableDataFromElement('blockAttenuationFitSummary');
+            const parts = [];
+
+            if (matrixTable && matrixTable.length) {
+                parts.push('Attenuation Matrix');
+                parts.push(tableToCsv(matrixTable));
+            } else {
+                parts.push('No attenuation matrix found');
+            }
+
+            if (fitTable && fitTable.length) {
+                parts.push('');
+                parts.push('Fit Summary');
+                parts.push(tableToCsv(fitTable));
+            }
+
+            const csv = parts.join('\r\n');
+            const filename = 'attenuation_matrix_and_fit.csv';
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            if (navigator.msSaveBlob) { // IE10+
+                navigator.msSaveBlob(blob, filename);
+            } else {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', filename);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // Wire CSV export button
+        (function() {
+            const btn = document.getElementById('exportBlockCsvBtn');
+            if (btn) btn.addEventListener('click', exportBlockResultsToCsv);
+        })();
     </script>
 </body>
 </html>

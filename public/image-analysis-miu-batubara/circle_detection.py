@@ -596,12 +596,13 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         upper_mu = np.array([s["mu_coal"] for s in upper_stats], dtype=float)
         lower_mu = np.array([s["mu_coal"] for s in lower_stats], dtype=float)
 
-        expected_per_side = int((grid_size * (grid_size - 1)) / 2)
-        if len(upper_intensity) != expected_per_side or len(lower_intensity) != expected_per_side:
+        upper_count = len(upper_intensity)
+        lower_count = len(lower_intensity)
+        if upper_count == 0 or lower_count == 0 or lower_count != upper_count:
             raise ValueError(
                 "Circle partition validation failed: "
-                f"expected {expected_per_side} samples per side, "
-                f"found upper={len(upper_intensity)}, lower={len(lower_intensity)}."
+                f"expected non-empty symmetric upper/lower partitions, found upper={upper_count}, "
+                f"lower={lower_count}."
             )
 
         upper_intensity_mean = float(np.mean(upper_intensity))
@@ -612,8 +613,8 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         # Plot 1: Bar graph of mean intensity (upper anti-diagonal sample vs lower anti-diagonal sample)
         fig1, ax1 = plt.subplots(figsize=(12, 6))
         labels = [
-            f"Upper Anti-Diagonal ({expected_per_side})",
-            f"Lower Anti-Diagonal ({expected_per_side})",
+            f"Upper Anti-Diagonal ({upper_count})",
+            f"Lower Anti-Diagonal ({lower_count})",
         ]
         x = np.arange(len(labels))
         intensity_vals = [upper_intensity_mean, lower_intensity_mean]

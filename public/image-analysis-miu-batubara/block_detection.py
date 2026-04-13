@@ -9,7 +9,12 @@ import numpy as np
 from PIL import Image
 
 DEBUG = True
+# Shrink each ROI inward by 12% per side before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
+AIR_GRADIENT_MIN_SCORE = 1.6
+AIR_STEP_MAX_REL_DIFF = 0.20
+AIR_STEP_MEAN_REL_DIFF = 0.10
+SPIKE_CURVATURE_SIGMA_MULTIPLIER = 4.0
 AIR_BLOCK_VALIDATION_ERROR = (
     "Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
     "or are incorrectly oriented. The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
@@ -729,11 +734,11 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        if _decreasing_score(air1) < 1.6 or _decreasing_score(air3) < 1.6:
+        if _decreasing_score(air1) < AIR_GRADIENT_MIN_SCORE or _decreasing_score(air3) < AIR_GRADIENT_MIN_SCORE:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)
-        if float(np.max(rel_diff)) > 0.20 or float(np.mean(rel_diff)) > 0.10:
+        if float(np.max(rel_diff)) > AIR_STEP_MAX_REL_DIFF or float(np.mean(rel_diff)) > AIR_STEP_MEAN_REL_DIFF:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         def _has_spike(values):
@@ -742,7 +747,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
                 return False
             curvature = np.abs(np.diff(diffs))
             scale = np.std(diffs) + eps
-            return bool(np.max(curvature) > 4.0 * scale)
+            return bool(np.max(curvature) > SPIKE_CURVATURE_SIGMA_MULTIPLIER * scale)
 
         if _has_spike(air1) or _has_spike(air3):
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)

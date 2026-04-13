@@ -93,6 +93,40 @@ def visualize_block_invalid_roi(file_bytes, subdivisions):
     return _bridge_call("Block invalid ROI visualization failed", _visualize_block_invalid_roi, file_bytes, subdivisions)
 
 
+# UI summary helpers
+
+def build_circle_attenuation_summary(diagonal_result):
+    """Create a normalized circle attenuation summary for UI rendering."""
+    summary = (diagonal_result or {}).get("summary", {})
+    upper_mu = float(summary.get("upper_mu_avg", 0.0))
+    lower_mu = float(summary.get("lower_mu_avg", 0.0))
+    delta_mu = abs(upper_mu - lower_mu)
+    return {
+        "title": "Attenuation (μ) Comparison",
+        "left_label": "Upper Anti-Diagonal Sample",
+        "right_label": "Lower Anti-Diagonal Sample",
+        "left_mu": upper_mu,
+        "right_mu": lower_mu,
+        "delta_mu": float(delta_mu),
+    }
+
+
+def build_block_attenuation_summary(comparison_result):
+    """Create a normalized block attenuation summary for UI rendering."""
+    summary = (comparison_result or {}).get("summary", {})
+    mu_block2 = float(summary.get("mu_block2", summary.get("mu_block1", 0.0)))
+    mu_block4 = float(summary.get("mu_block4", summary.get("mu_block3", 0.0)))
+    delta_mu = abs(mu_block2 - mu_block4)
+    return {
+        "title": "Attenuation (μ) Comparison",
+        "left_label": "Block 2 (Coal)",
+        "right_label": "Block 4 (Coal)",
+        "left_mu": mu_block2,
+        "right_mu": mu_block4,
+        "delta_mu": float(delta_mu),
+    }
+
+
 # Export functions used by PyScript UI
 __all__ = [
     "process_tiff_image",
@@ -106,4 +140,6 @@ __all__ = [
     "analyze_subdivision_histograms",
     "compare_blocks_1_vs_3",
     "visualize_block_invalid_roi",
+    "build_circle_attenuation_summary",
+    "build_block_attenuation_summary",
 ]

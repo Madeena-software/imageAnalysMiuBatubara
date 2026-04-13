@@ -91,9 +91,10 @@ def _assert_data_img_visible(page, selector):
     assert loc.is_visible()
 
 
-def _assert_parent_details_open(page, target_selector):
-    is_open = page.eval_on_selector(target_selector, "el => !!el.closest('details')?.open")
-    assert is_open is True
+def _assert_details_collapsed(page, details_selector):
+    loc = page.locator(details_selector)
+    expect(loc).to_be_visible()
+    assert loc.evaluate("el => el.open") is False
 
 
 def test_circle_detection_ui_flow(e2e_base_url, browser_page):
@@ -112,22 +113,35 @@ def test_circle_detection_ui_flow(e2e_base_url, browser_page):
     page.wait_for_selector("#resultsSection.active", timeout=180000)
     _assert_error_container_empty(page)
 
-    _assert_data_img_visible(page, "#histogramImage img")
-    _assert_data_img_visible(page, "#muPlotImage")
-    _assert_parent_details_open(page, "#histogramImage")
-    _assert_parent_details_open(page, "#circleFinalMuPlot")
+    _assert_data_img_visible(page, "#detectionImage img")
+    _assert_details_collapsed(page, "#circleParametersDetails")
+    _assert_details_collapsed(page, "#circleMasterDetails")
 
+    attenuation_summary = page.locator("#circleAttenuationComparison")
+    expect(attenuation_summary).to_be_visible()
+    expect(attenuation_summary).to_contain_text("Attenuation")
+
+    page.click("#circleMasterDetails > summary")
+    expect(page.locator("#circleMasterDetails")).to_have_attribute("open", "")
+    _assert_details_collapsed(page, "#circleHistogramDetails")
+    _assert_details_collapsed(page, "#circleExportDetails")
+
+    page.click("#circleHistogramDetails > summary")
+    _assert_data_img_visible(page, "#histogramImage img")
+
+    page.click("#circleMuPlotDetails > summary")
     mu_plot = page.locator("#muPlotImage")
     expect(mu_plot).to_be_visible()
     mu_src = mu_plot.get_attribute("src")
     assert mu_src is not None and mu_src.startswith("data:image/png;base64,")
     assert len(mu_src) > len("data:image/png;base64,")
 
+    page.click("#circleSummaryDetails > summary")
     diagonal_summary = page.locator("#diagonalSummary")
     expect(diagonal_summary).to_be_visible()
     expect(diagonal_summary).to_contain_text("Summary Statistics")
 
-    expect(page.locator(".export-section")).to_be_visible()
+    page.click("#circleExportDetails > summary")
     expect(page.locator("#exportCirclePdfBtn")).to_be_visible()
     expect(page.locator("#exportCircleImagesBtn")).to_be_visible()
 
@@ -150,8 +164,24 @@ def test_block_detection_ui_flow(e2e_base_url, browser_page):
     page.wait_for_selector("#blockResultsSection.active", timeout=180000)
     _assert_error_container_empty(page)
 
+    _assert_data_img_visible(page, "#blockDetectionImage img")
+    _assert_details_collapsed(page, "#blockParametersDetails")
+    _assert_details_collapsed(page, "#blockMasterDetails")
+
+    attenuation_summary = page.locator("#blockAttenuationComparison")
+    expect(attenuation_summary).to_be_visible()
+    expect(attenuation_summary).to_contain_text("Attenuation")
+
+    page.click("#blockMasterDetails > summary")
+    expect(page.locator("#blockMasterDetails")).to_have_attribute("open", "")
+    _assert_details_collapsed(page, "#blockSubdivisionDetails")
+    _assert_details_collapsed(page, "#blockExportDetails")
+
+    page.click("#blockSubdivisionDetails > summary")
     _assert_data_img_visible(page, "#subdivisionImage img")
-    _assert_data_img_visible(page, "#blockComparisonImage img")
-    _assert_parent_details_open(page, "#blockComparisonImage")
+
+    page.click("#blockExportDetails > summary")
+    expect(page.locator("#exportBlockPdfBtn")).to_be_visible()
+    expect(page.locator("#exportBlockImagesBtn")).to_be_visible()
 
     _assert_no_runtime_errors(messages)

@@ -394,6 +394,53 @@
             font-size: 1.3rem;
         }
 
+        .attenuation-comparison {
+            background: linear-gradient(135deg, #eff6ff 0%, #f8f9ff 100%);
+            border: 1px solid #dbe7ff;
+            border-left: 6px solid #667eea;
+            border-radius: 14px;
+            padding: 18px 20px;
+            margin: 16px 0;
+            color: #1f2d4d;
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .attenuation-comparison h3 {
+            margin: 0 0 8px 0;
+            color: #334;
+            font-size: 1.1rem;
+        }
+
+        .parameter-summary {
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        .parameter-summary table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .parameter-summary td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #edf1fb;
+            font-size: 0.95rem;
+        }
+
+        .parameter-summary tr:last-child td {
+            border-bottom: none;
+        }
+
+        .parameter-summary td:first-child {
+            font-weight: 700;
+            color: #444;
+            width: 45%;
+            background: #f8faff;
+        }
+
         .final-plots-section {
             margin-top: 24px;
             background: #f8f9fa;
@@ -661,39 +708,41 @@
 
             <!-- Circle Parameters Section -->
             <div class="parameters-section" id="circleParams">
-                <h2>⚙️ Circle Detection Parameters</h2>
-                <div class="param-grid">
-                    <div class="param-item">
-                        <label for="thresholdValue">Threshold (pixel value)</label>
-                        <input type="number" id="thresholdValue" value="24000" min="1000" max="65535" step="100" />
-                        <small><strong>Impact:</strong> Pixels BELOW this value are detected as circles. Lower = detect brighter areas, Higher = detect darker areas only (default: 24000)</small>
+                <details class="collapsible-panel stats-panel">
+                    <summary>⚙️ Circle Detection Parameters</summary>
+                    <div class="param-grid">
+                        <div class="param-item">
+                            <label for="thresholdValue">Threshold (pixel value)</label>
+                            <input type="number" id="thresholdValue" value="24000" min="1000" max="65535" step="100" />
+                            <small><strong>Impact:</strong> Pixels BELOW this value are detected as circles. Lower = detect brighter areas, Higher = detect darker areas only (default: 24000)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="minDiameter">Min Diameter (px)</label>
+                            <input type="number" id="minDiameter" value="280" min="10" max="500" step="5" />
+                            <small><strong>Impact:</strong> Circles smaller than this diameter are ignored. Lower = detect smaller circles, Higher = ignore small noise (default: 50 px)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="maxDiameter">Max Diameter (px)</label>
+                            <input type="number" id="maxDiameter" value="340" min="50" max="1000" step="5" />
+                            <small><strong>Impact:</strong> Circles larger than this diameter are ignored. Lower = exclude large blobs, Higher = accept larger circles (default: 357 px)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="minCircularity">Min Circularity (ratio)</label>
+                            <input type="number" id="minCircularity" value="0.6" min="0.1" max="1.0" step="0.05" />
+                            <small><strong>Impact:</strong> How round the shape must be (1.0 = perfect circle). Lower = accept oval/irregular shapes, Higher = only round circles (default: 0.6)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="minSolidity">Min Solidity (ratio)</label>
+                            <input type="number" id="minSolidity" value="0.7" min="0.1" max="1.0" step="0.05" />
+                            <small><strong>Impact:</strong> How solid/filled the shape is (1.0 = no holes). Lower = accept shapes with holes/dents, Higher = only solid circles (default: 0.7)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
+                            <input type="number" id="circleAirCvThreshold" value="0.05" min="0.01" max="0.50" step="0.01" />
+                            <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.05)</small>
+                        </div>
                     </div>
-                    <div class="param-item">
-                        <label for="minDiameter">Min Diameter (px)</label>
-                        <input type="number" id="minDiameter" value="280" min="10" max="500" step="5" />
-                        <small><strong>Impact:</strong> Circles smaller than this diameter are ignored. Lower = detect smaller circles, Higher = ignore small noise (default: 50 px)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="maxDiameter">Max Diameter (px)</label>
-                        <input type="number" id="maxDiameter" value="340" min="50" max="1000" step="5" />
-                        <small><strong>Impact:</strong> Circles larger than this diameter are ignored. Lower = exclude large blobs, Higher = accept larger circles (default: 357 px)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="minCircularity">Min Circularity (ratio)</label>
-                        <input type="number" id="minCircularity" value="0.6" min="0.1" max="1.0" step="0.05" />
-                        <small><strong>Impact:</strong> How round the shape must be (1.0 = perfect circle). Lower = accept oval/irregular shapes, Higher = only round circles (default: 0.6)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="minSolidity">Min Solidity (ratio)</label>
-                        <input type="number" id="minSolidity" value="0.7" min="0.1" max="1.0" step="0.05" />
-                        <small><strong>Impact:</strong> How solid/filled the shape is (1.0 = no holes). Lower = accept shapes with holes/dents, Higher = only solid circles (default: 0.7)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
-                        <input type="number" id="circleAirCvThreshold" value="0.05" min="0.01" max="0.50" step="0.01" />
-                        <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.05)</small>
-                    </div>
-                </div>
+                </details>
 
                 <button type="button" class="process-btn" id="processBtn" disabled>
                     🚀 Process Circle Detection
@@ -702,44 +751,46 @@
 
             <!-- Block Parameters Section -->
             <div class="parameters-section" id="blockParams" style="display: none;">
-                <h2>⚙️ Block Detection Parameters</h2>
-                <div class="param-grid">
-                    <div class="param-item">
-                        <label for="blockThreshold">Threshold (pixel value)</label>
-                        <input type="number" id="blockThreshold" value="54000" min="1000" max="65535" step="100" />
-                        <small><strong>Impact:</strong> Pixels BELOW this value are detected as blocks (default: 55000)</small>
+                <details class="collapsible-panel stats-panel">
+                    <summary>⚙️ Block Detection Parameters</summary>
+                    <div class="param-grid">
+                        <div class="param-item">
+                            <label for="blockThreshold">Threshold (pixel value)</label>
+                            <input type="number" id="blockThreshold" value="54000" min="1000" max="65535" step="100" />
+                            <small><strong>Impact:</strong> Pixels BELOW this value are detected as blocks (default: 55000)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="minLength">Min Length (px)</label>
+                            <input type="number" id="minLength" value="1200" min="100" max="3000" step="50" />
+                            <small><strong>Impact:</strong> Minimum length of rectangular block side (default: 1400 px)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="maxLength">Max Length (px)</label>
+                            <input type="number" id="maxLength" value="1600" min="100" max="3000" step="50" />
+                            <small><strong>Impact:</strong> Maximum length of rectangular block side (default: 1600 px)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="minRectangularity">Min Rectangularity</label>
+                            <input type="number" id="minRectangularity" value="0.9" min="0.1" max="1.0" step="0.05" />
+                            <small><strong>Impact:</strong> How rectangular the shape must be (1.0 = perfect rectangle) (default: 0.9)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="blockMinSolidity">Min Solidity</label>
+                            <input type="number" id="blockMinSolidity" value="0.9" min="0.1" max="1.0" step="0.05" />
+                            <small><strong>Impact:</strong> How solid/filled the block is (default: 0.9)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="numSubdivisions">Subdivisions</label>
+                            <input type="number" id="numSubdivisions" value="10" min="5" max="20" step="1" />
+                            <small><strong>Impact:</strong> Number of subdivisions per block (default: 10)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="blockStepMaxRelDiff">Air Step Max Relative Diff</label>
+                            <input type="number" id="blockStepMaxRelDiff" value="0.20" min="0.05" max="1.00" step="0.01" />
+                            <small><strong>Impact:</strong> Higher allows larger difference between Block 1 vs Block 3 at the bottom (max-thickness) air step (default: 0.20)</small>
+                        </div>
                     </div>
-                    <div class="param-item">
-                        <label for="minLength">Min Length (px)</label>
-                        <input type="number" id="minLength" value="1200" min="100" max="3000" step="50" />
-                        <small><strong>Impact:</strong> Minimum length of rectangular block side (default: 1400 px)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="maxLength">Max Length (px)</label>
-                        <input type="number" id="maxLength" value="1600" min="100" max="3000" step="50" />
-                        <small><strong>Impact:</strong> Maximum length of rectangular block side (default: 1600 px)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="minRectangularity">Min Rectangularity</label>
-                        <input type="number" id="minRectangularity" value="0.9" min="0.1" max="1.0" step="0.05" />
-                        <small><strong>Impact:</strong> How rectangular the shape must be (1.0 = perfect rectangle) (default: 0.9)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="blockMinSolidity">Min Solidity</label>
-                        <input type="number" id="blockMinSolidity" value="0.9" min="0.1" max="1.0" step="0.05" />
-                        <small><strong>Impact:</strong> How solid/filled the block is (default: 0.9)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="numSubdivisions">Subdivisions</label>
-                        <input type="number" id="numSubdivisions" value="10" min="5" max="20" step="1" />
-                        <small><strong>Impact:</strong> Number of subdivisions per block (default: 10)</small>
-                    </div>
-                    <div class="param-item">
-                        <label for="blockStepMaxRelDiff">Air Step Max Relative Diff</label>
-                        <input type="number" id="blockStepMaxRelDiff" value="0.20" min="0.05" max="1.00" step="0.01" />
-                        <small><strong>Impact:</strong> Higher allows larger difference between Block 1 vs Block 3 at the bottom (max-thickness) air step (default: 0.20)</small>
-                    </div>
-                </div>
+                </details>
 
                 <button type="button" class="process-btn" id="processBlockBtn" disabled>
                     🚀 Process Block Detection
@@ -755,171 +806,231 @@
             <!-- Results Section -->
             <div class="results" id="resultsSection">
                 <h2>📊 Results</h2>
-                
-                <div class="results-grid">
-                    <div class="result-image">
-                        <h3>Detection Result</h3>
-                        <div id="detectionImage"></div>
+
+                <div class="result-image">
+                    <h3>Processed Image</h3>
+                    <div id="detectionImage"></div>
+                </div>
+
+                <details class="collapsible-panel stats-panel" id="circleParametersDetails">
+                    <summary>Detection Parameters</summary>
+                    <div class="stats-section" style="margin-top: 0;">
+                        <div id="circleParametersSnapshot"></div>
                     </div>
-                    <div class="result-image">
-                        <h3 id="maskTitle">Threshold Mask</h3>
-                        <div id="maskImage"></div>
-                    </div>
-                </div>
+                </details>
 
-                <div class="stats-section">
-                    <h3>📈 Detection Statistics</h3>
-                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
-                        <strong>📖 Metrics Explained:</strong>
-                        <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
-                            <li><strong>Radius:</strong> Distance from center to edge of detected circle (in pixels)</li>
-                            <li><strong>Mean Value:</strong> Average pixel intensity inside the circle (16-bit: 0-65535). Lower = darker, Higher = brighter</li>
-                            <li><strong>Circularity:</strong> How round the shape is (0.0-1.0). 1.0 = perfect circle, lower = more irregular</li>
-                            <li><strong>Solidity:</strong> How solid/filled the shape is (0.0-1.0). 1.0 = completely solid, lower = has holes or concave areas</li>
-                        </ul>
-                    </div>
-                    <div id="statsTable"></div>
-                </div>
+                <div class="attenuation-comparison" id="circleAttenuationComparison"></div>
 
-                <div class="stats-section">
-                    <h3>🔲 Grid Analysis (16 positions)</h3>
-                    <div id="gridImage"></div>
-                </div>
+                <details class="collapsible-panel result-panel" id="circleMasterDetails">
+                    <summary>View Detailed Plots, Histograms, and Raw Data</summary>
 
-                <div class="stats-section">
-                    <h3>📊 Histogram Analysis for Each Grid Position</h3>
-                    <div id="histogramImage"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="circleMaskDetails">
+                        <summary id="maskTitle">Threshold Mask</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="maskImage"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section">
-                    <h3>⚖️ Diagonal Comparison Statistics (Table)</h3>
-                    <div id="diagonalSummary"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="circleStatsDetails">
+                        <summary>📈 Detection Statistics</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                                <strong>📖 Metrics Explained:</strong>
+                                <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
+                                    <li><strong>Radius:</strong> Distance from center to edge of detected circle (in pixels)</li>
+                                    <li><strong>Mean Value:</strong> Average pixel intensity inside the circle (16-bit: 0-65535). Lower = darker, Higher = brighter</li>
+                                    <li><strong>Circularity:</strong> How round the shape is (0.0-1.0). 1.0 = perfect circle, lower = more irregular</li>
+                                    <li><strong>Solidity:</strong> How solid/filled the shape is (0.0-1.0). 1.0 = completely solid, lower = has holes or concave areas</li>
+                                </ul>
+                            </div>
+                            <div id="statsTable"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section" id="circleInvalidRoiSection" style="display:none;">
-                    <h3>🧭 Invalid ROI Guide</h3>
-                    <div id="circleInvalidRoiImage"></div>
-                    <div id="circleInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="circleGridDetails">
+                        <summary>🔲 Grid Analysis (16 positions)</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="gridImage"></div>
+                        </div>
+                    </details>
 
-                <div class="final-plots-section">
-                    <h3 style="margin-bottom: 16px;">📉 Final Comparison Plots</h3>
-                    <div class="final-plots-grid">
-                        <div class="final-plot-card">
-                            <h3>Intensity (I) Comparison Plot</h3>
+                    <details class="collapsible-panel stats-panel" id="circleHistogramDetails">
+                        <summary>📊 Histogram Analysis for Each Grid Position</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="histogramImage"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="circleIntensityPlotDetails">
+                        <summary>📉 Intensity (I) Comparison Plot</summary>
+                        <div class="final-plots-section" style="margin-top: 0;">
                             <div id="circleFinalIntensityPlot"></div>
                         </div>
-                        <div class="final-plot-card">
-                            <h3>μ (Attenuation Coefficient) Comparison Plot</h3>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="circleMuPlotDetails">
+                        <summary>📉 μ (Attenuation Coefficient) Comparison Plot</summary>
+                        <div class="final-plots-section" style="margin-top: 0;">
                             <div id="circleFinalMuPlot"></div>
                         </div>
-                    </div>
-                </div>
+                    </details>
 
-                <!-- Export Section -->
-                <div class="export-section">
-                    <button type="button" class="export-btn" id="exportCirclePdfBtn">
-                        📄 Export as PDF
-                    </button>
-                    <button type="button" class="export-btn secondary" id="exportCircleImagesBtn">
-                        🖼️ Download Images
-                    </button>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="circleSummaryDetails">
+                        <summary>⚖️ Diagonal Comparison Statistics (Table)</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="diagonalSummary"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="circleInvalidRoiDetails">
+                        <summary>🧭 Invalid ROI Guide</summary>
+                        <div class="stats-section" id="circleInvalidRoiSection" style="display:none; margin-top: 0;">
+                            <div id="circleInvalidRoiImage"></div>
+                            <div id="circleInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="circleExportDetails">
+                        <summary>📤 Export Options</summary>
+                        <div class="export-section">
+                            <button type="button" class="export-btn" id="exportCirclePdfBtn">
+                                📄 Export as PDF
+                            </button>
+                            <button type="button" class="export-btn secondary" id="exportCircleImagesBtn">
+                                🖼️ Download Images
+                            </button>
+                        </div>
+                    </details>
+                </details>
             </div>
 
             <!-- Block Detection Results -->
             <div class="results" id="blockResultsSection">
                 <h2>📊 Block Detection Results</h2>
-                
-                <div class="results-grid">
-                    <div class="result-image">
-                        <h3>Block Detection Result</h3>
-                        <div id="blockDetectionImage"></div>
+
+                <div class="result-image">
+                    <h3>Processed Image</h3>
+                    <div id="blockDetectionImage"></div>
+                </div>
+
+                <details class="collapsible-panel stats-panel" id="blockParametersDetails">
+                    <summary>Detection Parameters</summary>
+                    <div class="stats-section" style="margin-top: 0;">
+                        <div id="blockParametersSnapshot"></div>
                     </div>
-                    <div class="result-image">
-                        <h3 id="blockMaskTitle">Threshold Mask</h3>
-                        <div id="blockMaskImage"></div>
-                    </div>
-                </div>
+                </details>
 
-                <div class="stats-section">
-                    <h3>📈 Block Statistics</h3>
-                    <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
-                        <strong>📖 Block Detection Info:</strong>
-                        <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
-                            <li><strong>Detected:</strong> Air Blocks 1 and 3 are detected from image contours</li>
-                            <li><strong>Calculated:</strong> Block 2 is interpolated at midpoint; Block 4 is extrapolated using the same spacing vector</li>
-                            <li><strong>Mean Value:</strong> Average pixel intensity (16-bit: 0-65535)</li>
-                            <li><strong>Rectangularity:</strong> How rectangular the shape is (0.0-1.0). 1.0 = perfect rectangle</li>
-                        </ul>
-                    </div>
-                    <div id="blockStatsTable"></div>
-                </div>
+                <div class="attenuation-comparison" id="blockAttenuationComparison"></div>
 
-                <div class="stats-section">
-                    <h3>📊 Histogram Analysis for Each Block</h3>
-                    <div id="blockHistogramImage"></div>
-                </div>
+                <details class="collapsible-panel result-panel" id="blockMasterDetails">
+                    <summary>View Detailed Plots, Histograms, and Raw Data</summary>
 
-                <div class="stats-section">
-                    <h3>🔲 Block Subdivisions</h3>
-                    <div id="subdivisionImage"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockMaskDetails">
+                        <summary id="blockMaskTitle">Threshold Mask</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="blockMaskImage"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section">
-                    <h3>📊 Subdivision Histograms - Block 1</h3>
-                    <div id="subdivisionHistogram1"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockStatsDetails">
+                        <summary>📈 Block Statistics</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
+                                <strong>📖 Block Detection Info:</strong>
+                                <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
+                                    <li><strong>Detected:</strong> Air Blocks 1 and 3 are detected from image contours</li>
+                                    <li><strong>Calculated:</strong> Block 2 is interpolated at midpoint; Block 4 is extrapolated using the same spacing vector</li>
+                                    <li><strong>Mean Value:</strong> Average pixel intensity (16-bit: 0-65535)</li>
+                                    <li><strong>Rectangularity:</strong> How rectangular the shape is (0.0-1.0). 1.0 = perfect rectangle</li>
+                                </ul>
+                            </div>
+                            <div id="blockStatsTable"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section">
-                    <h3>📊 Subdivision Histograms - Block 2</h3>
-                    <div id="subdivisionHistogram2"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockHistogramDetails">
+                        <summary>📊 Histogram Analysis for Each Block</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="blockHistogramImage"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section">
-                    <h3>📊 Subdivision Histograms - Block 3</h3>
-                    <div id="subdivisionHistogram3"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockSubdivisionDetails">
+                        <summary>🔲 Block Subdivisions</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="subdivisionImage"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section">
-                    <h3>📊 Subdivision Histograms - Block 4</h3>
-                    <div id="subdivisionHistogram4"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockSubdivisionHistogram1Details">
+                        <summary>📊 Subdivision Histograms - Block 1</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="subdivisionHistogram1"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section">
-                    <h3>📊 Block Comparison Summary</h3>
-                    <div id="blockComparisonSummary"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockSubdivisionHistogram2Details">
+                        <summary>📊 Subdivision Histograms - Block 2</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="subdivisionHistogram2"></div>
+                        </div>
+                    </details>
 
-                <div class="stats-section" id="blockInvalidRoiSection" style="display:none;">
-                    <h3>🧭 Invalid ROI Guide</h3>
-                    <div id="blockInvalidRoiImage"></div>
-                    <div id="blockInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockSubdivisionHistogram3Details">
+                        <summary>📊 Subdivision Histograms - Block 3</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="subdivisionHistogram3"></div>
+                        </div>
+                    </details>
 
-                <div class="final-plots-section">
-                    <h3 style="margin-bottom: 16px;">📉 Final Comparison Plots</h3>
-                    <div class="final-plots-grid">
-                        <div class="final-plot-card">
-                            <h3>Intensity (I) Comparison Plot</h3>
+                    <details class="collapsible-panel stats-panel" id="blockSubdivisionHistogram4Details">
+                        <summary>📊 Subdivision Histograms - Block 4</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="subdivisionHistogram4"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="blockIntensityPlotDetails">
+                        <summary>📉 Intensity (I) Comparison Plot</summary>
+                        <div class="final-plots-section" style="margin-top: 0;">
                             <div id="blockFinalIntensityPlot"></div>
                         </div>
-                        <div class="final-plot-card">
-                            <h3>μ (Attenuation Coefficient) Regression/Comparison Plot</h3>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="blockMuPlotDetails">
+                        <summary>📉 μ (Attenuation Coefficient) Regression/Comparison Plot</summary>
+                        <div class="final-plots-section" style="margin-top: 0;">
                             <div id="blockFinalMuPlot"></div>
                         </div>
-                    </div>
-                </div>
+                    </details>
 
-                <!-- Export Section -->
-                <div class="export-section">
-                    <button type="button" class="export-btn" id="exportBlockPdfBtn">
-                        📄 Export as PDF
-                    </button>
-                    <button type="button" class="export-btn secondary" id="exportBlockImagesBtn">
-                        🖼️ Download Images
-                    </button>
-                </div>
+                    <details class="collapsible-panel stats-panel" id="blockSummaryDetails">
+                        <summary>📊 Block Comparison Summary</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="blockComparisonSummary"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="blockInvalidRoiDetails">
+                        <summary>🧭 Invalid ROI Guide</summary>
+                        <div class="stats-section" id="blockInvalidRoiSection" style="display:none; margin-top: 0;">
+                            <div id="blockInvalidRoiImage"></div>
+                            <div id="blockInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="blockExportDetails">
+                        <summary>📤 Export Options</summary>
+                        <div class="export-section">
+                            <button type="button" class="export-btn" id="exportBlockPdfBtn">
+                                📄 Export as PDF
+                            </button>
+                            <button type="button" class="export-btn secondary" id="exportBlockImagesBtn">
+                                🖼️ Download Images
+                            </button>
+                        </div>
+                    </details>
+                </details>
             </div>
         </div>
 
@@ -975,12 +1086,40 @@
             subdivide_blocks,
             analyze_subdivision_histograms,
             compare_blocks_1_vs_3,
-            visualize_block_invalid_roi
+            visualize_block_invalid_roi,
+            build_circle_attenuation_summary,
+            build_block_attenuation_summary
         )
 
         # Global variables
         uploaded_file_data = None
         uploaded_filename = None
+
+        def render_parameter_snapshot(container_id, params, labels):
+            """Render processing parameters as a compact summary table."""
+            container = document.getElementById(container_id)
+            if container is None:
+                return
+            table_rows = ""
+            for key, label in labels:
+                value = params.get(key, "")
+                table_rows += f"<tr><td>{label}</td><td>{value}</td></tr>"
+            container.innerHTML = f'<div class="parameter-summary"><table><tbody>{table_rows}</tbody></table></div>'
+
+        def render_attenuation_summary(container_id, summary_payload):
+            """Render attenuation comparison as a concise text summary."""
+            container = document.getElementById(container_id)
+            if container is None:
+                return
+            if not summary_payload:
+                container.innerHTML = ''
+                return
+            container.innerHTML = f'''
+            <h3>{summary_payload.get("title", "Attenuation (μ) Comparison")}</h3>
+            <div><strong>{summary_payload.get("left_label", "Sample A")}:</strong> μ = {summary_payload.get("left_mu", 0.0):.5f}</div>
+            <div><strong>{summary_payload.get("right_label", "Sample B")}:</strong> μ = {summary_payload.get("right_mu", 0.0):.5f}</div>
+            <div><strong>Absolute Difference:</strong> Δμ = {summary_payload.get("delta_mu", 0.0):.5f}</div>
+            '''
         current_mode = 'circle'  # 'circle' or 'block'
 
         def show_message(message, is_error=False):
@@ -1126,11 +1265,30 @@
                 'grid_cols': 4,
             }
 
+            render_parameter_snapshot('circleParametersSnapshot', params, [
+                ('threshold_value', 'Threshold (pixel value)'),
+                ('min_diameter', 'Min Diameter (px)'),
+                ('max_diameter', 'Max Diameter (px)'),
+                ('min_circularity', 'Min Circularity'),
+                ('min_solidity', 'Min Solidity'),
+                ('air_cv_threshold', 'Air CV Validation Threshold'),
+                ('grid_cols', 'Grid Columns'),
+            ])
+
             document.getElementById('circleInvalidRoiSection').style.display = 'none'
             document.getElementById('circleInvalidRoiImage').innerHTML = ''
             document.getElementById('circleInvalidRoiHint').textContent = ''
             document.getElementById('circleFinalIntensityPlot').innerHTML = ''
             document.getElementById('circleFinalMuPlot').innerHTML = ''
+            document.getElementById('diagonalSummary').innerHTML = ''
+            document.getElementById('histogramImage').innerHTML = ''
+            document.getElementById('gridImage').innerHTML = ''
+            render_attenuation_summary('circleAttenuationComparison', None)
+            document.getElementById('circleParametersDetails').open = False
+            circle_master = document.getElementById('circleMasterDetails')
+            circle_master.open = False
+            for detail in circle_master.querySelectorAll('details'):
+                detail.open = False
             
             await asyncio.sleep(0.1)
             
@@ -1227,11 +1385,33 @@
                 'air_step_max_rel_diff': float(document.getElementById('blockStepMaxRelDiff').value),
             }
 
+            render_parameter_snapshot('blockParametersSnapshot', params, [
+                ('threshold_value', 'Threshold (pixel value)'),
+                ('min_length_rectangular', 'Min Length (px)'),
+                ('max_length_rectangular', 'Max Length (px)'),
+                ('min_rectangularity', 'Min Rectangularity'),
+                ('min_solidity', 'Min Solidity'),
+                ('air_step_max_rel_diff', 'Air Step Max Relative Diff'),
+            ])
+
             document.getElementById('blockInvalidRoiSection').style.display = 'none'
             document.getElementById('blockInvalidRoiImage').innerHTML = ''
             document.getElementById('blockInvalidRoiHint').textContent = ''
             document.getElementById('blockFinalIntensityPlot').innerHTML = ''
             document.getElementById('blockFinalMuPlot').innerHTML = ''
+            document.getElementById('blockComparisonSummary').innerHTML = ''
+            document.getElementById('blockHistogramImage').innerHTML = ''
+            document.getElementById('subdivisionImage').innerHTML = ''
+            document.getElementById('subdivisionHistogram1').innerHTML = ''
+            document.getElementById('subdivisionHistogram2').innerHTML = ''
+            document.getElementById('subdivisionHistogram3').innerHTML = ''
+            document.getElementById('subdivisionHistogram4').innerHTML = ''
+            render_attenuation_summary('blockAttenuationComparison', None)
+            document.getElementById('blockParametersDetails').open = False
+            block_master = document.getElementById('blockMasterDetails')
+            block_master.open = False
+            for detail in block_master.querySelectorAll('details'):
+                detail.open = False
             
             num_subdivisions = int(document.getElementById('numSubdivisions').value)
             
@@ -1563,6 +1743,10 @@
                 '''
                 summary_div.innerHTML = summary_html
                 console.log("Comparison summary set")
+                render_attenuation_summary(
+                    'blockAttenuationComparison',
+                    build_block_attenuation_summary(comparison_result),
+                )
             except Exception as e:
                 console.error("Error in display_block_comparison_results:", str(e))
                 import traceback
@@ -1679,6 +1863,10 @@
             </div>
             '''
             summary_div.innerHTML = summary_html
+            render_attenuation_summary(
+                'circleAttenuationComparison',
+                build_circle_attenuation_summary(diagonal_result),
+            )
 
         def display_circle_invalid_roi_guidance(invalid_roi_result):
             """Display invalid ROI image for circle air references."""
@@ -1759,43 +1947,6 @@
 
     <!-- JavaScript for mode switching and PDF export -->
         <script>
-        function makeResultsCollapsible() {
-            const selectors = [
-                '#resultsSection .result-image',
-                '#resultsSection .stats-section',
-                '#resultsSection .final-plots-section',
-                '#blockResultsSection .result-image',
-                '#blockResultsSection .stats-section',
-                '#blockResultsSection .final-plots-section'
-            ];
-
-            document.querySelectorAll(selectors.join(',')).forEach((section, idx) => {
-                if (section.closest('details.collapsible-panel')) return;
-
-                const heading = section.querySelector('h3');
-                const title = heading
-                    ? heading.textContent.trim()
-                    : `Section ${idx + 1}`;
-
-                const details = document.createElement('details');
-                details.className = 'collapsible-panel';
-                details.classList.add(section.classList.contains('result-image') ? 'result-panel' : 'stats-panel');
-                details.open = true;
-
-                const summary = document.createElement('summary');
-                summary.textContent = title;
-                details.appendChild(summary);
-
-                section.parentNode.insertBefore(details, section);
-                details.appendChild(section);
-            });
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', makeResultsCollapsible);
-        } else {
-            makeResultsCollapsible();
-        }
 
         function switchMode(mode) {
             // Update button states

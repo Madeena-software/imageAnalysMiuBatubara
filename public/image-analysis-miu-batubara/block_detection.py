@@ -811,13 +811,14 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         i0_air_x10 = float(air_ref[0])
         if i0_air_x10 <= eps:
             raise ValueError("Invalid I0 reference: air intensity at x=10 is too small.")
+        max_ratio_clip = 1e300  # Keep ln() input finite while preserving physically large ratios.
 
         def _compute_mu_series(coal_stats):
             x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
             i_t = np.array([float(s["mean"]) for s in coal_stats], dtype=float)
             i0 = np.clip(air_ref, eps, None)
             i_t_safe = np.clip(i_t, eps, None)
-            ratio = np.clip(i0 / i_t_safe, eps, 1e300)
+            ratio = np.clip(i0 / i_t_safe, eps, max_ratio_clip)
             y = np.log(ratio)
             slope, intercept = np.polyfit(x, y, 1)
             mu_acrylic = intercept / 14.0

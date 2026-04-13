@@ -62,6 +62,25 @@ python -m http.server 8000
 # Then manually open: http://localhost:8000/index.html
 ```
 
+### Method 3: WSL / Virtualenv (Recommended for development)
+
+Use a lightweight Python virtual environment on WSL or Linux to run the server and tests without affecting your system Python.
+
+```bash
+# From the repository root
+bash scripts/setup_venv.sh       # creates .venv and installs deps from requirements.txt
+source .venv/bin/activate        # activate the venv
+python run.py                    # start the local server (default port 8000)
+
+# Run tests inside the venv
+pytest -q
+```
+
+Notes:
+- Ensure you have a suitable Python 3 installed (3.8+ recommended). Use `PYTHON=python3.10 bash scripts/setup_venv.sh` to choose a specific interpreter.
+- The `scripts/setup_venv.sh` script will create `.venv/` and install packages from `requirements.txt`.
+
+
 ## ✅ Testing Pyramid (Unit / Integration / E2E)
 
 This repository now includes a full testing pyramid under:

@@ -1,0 +1,6 @@
+numpy
+opencv-python
+Pillow
+matplotlib
+fpdf2
+pytest

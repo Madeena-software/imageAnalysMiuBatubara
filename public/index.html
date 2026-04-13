@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Analysis MIU Batubara</title>
+</head>
+<body>
+  <main>
+    <h1>Redirecting to app...</h1>
+    <p><a id="manual-open-link" href="./image-analysis-miu-batubara/">Open Image Analysis MIU Batubara manually</a></p>
+  </main>
+  <script>
+    const targetPath = './image-analysis-miu-batubara/';
+    const targetUrl = new URL(targetPath, window.location.href).href;
+    const manualLink = document.getElementById('manual-open-link');
+    if (manualLink) {
+      manualLink.href = targetUrl;
+    }
+    window.location.replace(targetUrl);
+  </script>
+</body>
+</html>

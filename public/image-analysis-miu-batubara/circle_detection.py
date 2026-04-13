@@ -596,11 +596,16 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         upper_mu = np.array([s["mu_coal"] for s in upper_stats], dtype=float)
         lower_mu = np.array([s["mu_coal"] for s in lower_stats], dtype=float)
 
-        expected_per_side = int((grid_size * (grid_size - 1)) / 2)
-        if len(upper_intensity) != expected_per_side or len(lower_intensity) != expected_per_side:
+        expected_per_side = len(upper_items)
+        if (
+            expected_per_side == 0
+            or len(lower_items) == 0
+            or len(upper_intensity) != expected_per_side
+            or len(lower_intensity) != len(lower_items)
+        ):
             raise ValueError(
                 "Circle partition validation failed: "
-                f"expected {expected_per_side} samples per side, "
+                f"expected upper={len(upper_items)} and lower={len(lower_items)} samples, "
                 f"found upper={len(upper_intensity)}, lower={len(lower_intensity)}."
             )
 

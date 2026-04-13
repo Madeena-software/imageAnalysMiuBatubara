@@ -91,6 +91,15 @@ def _assert_data_img_visible(page, selector):
     assert loc.is_visible()
 
 
+def _assert_not_empty(page, selector):
+    loc = page.locator(selector)
+    loc.wait_for(timeout=120000)
+    text = (loc.text_content() or "").strip()
+    has_table = loc.locator("table").count() > 0
+    assert text != "" or has_table
+    assert loc.is_visible()
+
+
 def _assert_parent_details_open(page, target_selector):
     is_open = page.eval_on_selector(target_selector, "el => !!el.closest('details')?.open")
     assert is_open is True
@@ -113,9 +122,14 @@ def test_circle_detection_ui_flow(e2e_base_url, browser_page):
     _assert_error_container_empty(page)
 
     _assert_data_img_visible(page, "#histogramImage img")
-    _assert_data_img_visible(page, "#diagonalComparison img")
+    _assert_data_img_visible(page, "#muPlotImage")
+    _assert_not_empty(page, "#diagonalSummary")
+    page.locator("#resultsSection .export-section").wait_for(timeout=120000)
+    assert page.locator("#resultsSection .export-section").is_visible()
+    assert page.locator("#exportCirclePdfBtn").is_visible()
+    assert page.locator("#exportCircleImagesBtn").is_visible()
     _assert_parent_details_open(page, "#histogramImage")
-    _assert_parent_details_open(page, "#diagonalComparison")
+    _assert_parent_details_open(page, "#circleFinalMuPlot")
 
     _assert_no_runtime_errors(messages)
 

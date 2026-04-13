@@ -817,7 +817,7 @@
                 </div>
 
                 <!-- Export Section -->
-                <div class="export-section">
+                <div class="export-section" id="circleExportSection">
                     <button type="button" class="export-btn" id="exportCirclePdfBtn">
                         📄 Export as PDF
                     </button>
@@ -912,7 +912,7 @@
                 </div>
 
                 <!-- Export Section -->
-                <div class="export-section">
+                <div class="export-section" id="blockExportSection">
                     <button type="button" class="export-btn" id="exportBlockPdfBtn">
                         📄 Export as PDF
                     </button>
@@ -1578,15 +1578,45 @@
             histogram_div = document.getElementById('histogramImage')
             histogram_div.innerHTML = f'<img src="data:image/png;base64,{histogram_result["histogram_image"]}" alt="Histogram Analysis" style="max-width: 100%; border-radius: 10px;" />'
 
+        def _as_data_png_uri(image_data):
+            if not image_data:
+                return ''
+            image_data_str = str(image_data)
+            if image_data_str.startswith('data:image/'):
+                return image_data_str
+            return f"data:image/png;base64,{image_data_str}"
+
+        def _render_png_image(container, image_data, image_id, alt_text):
+            if not container or not image_data:
+                return
+            data_uri = _as_data_png_uri(image_data)
+            img = container.querySelector(f'img#{image_id}')
+            if img is None:
+                img = document.createElement('img')
+                img.id = image_id
+                img.alt = alt_text
+                img.style.maxWidth = '100%'
+                img.style.borderRadius = '10px'
+            img.src = data_uri
+            container.replaceChildren(img)
+
         def display_diagonal_results(diagonal_result):
             """Display diagonal comparison results"""
             intensity_div = document.getElementById('circleFinalIntensityPlot')
-            if 'intensity_plot_image' in diagonal_result:
-                intensity_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["intensity_plot_image"]}" alt="Circle Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
+            _render_png_image(
+                intensity_div,
+                diagonal_result.get('intensity_plot_image'),
+                'intensityPlotImage',
+                'Circle Intensity Comparison'
+            )
 
             mu_div = document.getElementById('circleFinalMuPlot')
-            if 'mu_plot_image' in diagonal_result:
-                mu_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["mu_plot_image"]}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
+            _render_png_image(
+                mu_div,
+                diagonal_result.get('mu_plot_image'),
+                'muPlotImage',
+                'Circle Mu Comparison'
+            )
             
             summary = diagonal_result['summary']
             summary_div = document.getElementById('diagonalSummary')
@@ -1711,8 +1741,10 @@
             const selectors = [
                 '#resultsSection .result-image',
                 '#resultsSection .stats-section',
+                '#resultsSection .final-plots-section',
                 '#blockResultsSection .result-image',
-                '#blockResultsSection .stats-section'
+                '#blockResultsSection .stats-section',
+                '#blockResultsSection .final-plots-section'
             ];
 
             document.querySelectorAll(selectors.join(',')).forEach((section, idx) => {
@@ -1726,7 +1758,7 @@
                 const details = document.createElement('details');
                 details.className = 'collapsible-panel';
                 details.classList.add(section.classList.contains('result-image') ? 'result-panel' : 'stats-panel');
-                details.open = false;
+                details.open = true;
 
                 const summary = document.createElement('summary');
                 summary.textContent = title;
@@ -1734,6 +1766,13 @@
 
                 section.parentNode.insertBefore(details, section);
                 details.appendChild(section);
+            });
+
+            ['circleExportSection', 'blockExportSection'].forEach((id) => {
+                const section = document.getElementById(id);
+                if (section?.parentElement) {
+                    section.parentElement.appendChild(section);
+                }
             });
         }
 

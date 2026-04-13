@@ -351,7 +351,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
         fig_size = max(12, grid_size * 4)
         fig, axes = plt.subplots(grid_size, grid_size, figsize=(fig_size, fig_size))
         fig.suptitle(
-            f"Histogram Distribution - {grid_size}x{grid_size} Grid (Arranged by Image Position)",
+            f"Histogram Distribution - {grid_size}x{grid_size} Grid (Anti-Diagonal Layout)",
             fontsize=16,
             fontweight="bold",
         )
@@ -363,7 +363,8 @@ def analyze_grid_histograms(file_bytes, grid_results):
 
         for row in range(grid_size):
             for col in range(grid_size):
-                ax = axes[row, col]
+                display_col = (grid_size - 1) - col
+                ax = axes[row, display_col]
                 grid_pos_id = row * grid_size + col + 1
                 if (row, col) not in measured_pixels:
                     ax.text(
@@ -516,14 +517,18 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         anti_diagonal_items = []
         upper_items = []
         lower_items = []
+        max_row = max(item["grid_pos"][0] for item in grid_data)
+        max_col = max(item["grid_pos"][1] for item in grid_data)
+        grid_size = max(max_row, max_col) + 1
+        anti_diagonal_sum = grid_size - 1
 
         for item in grid_data:
             row, col = item["grid_pos"]
             if row == col:
                 diagonal_items.append(item)
-            elif (row + col) == 3:
+            elif (row + col) == anti_diagonal_sum:
                 anti_diagonal_items.append(item)
-            elif row < col:
+            elif (row + col) < anti_diagonal_sum:
                 upper_items.append(item)
             else:
                 lower_items.append(item)
@@ -553,9 +558,9 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             raise ValueError("Physics validation failed: no diagonal (air reference) circles were available.")
 
         anti_diagonal_stats = _measure(anti_diagonal_items)
-        if len(anti_diagonal_stats) != 4:
+        if len(anti_diagonal_stats) != grid_size:
             raise ValueError(
-                "Circle validation failed: expected 4 anti-diagonal air reference circles, "
+                f"Circle validation failed: expected {grid_size} anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
             )
         anti_air_means = np.array([float(s["mean"]) for s in anti_diagonal_stats], dtype=float)
@@ -586,22 +591,41 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         upper_stats = _attach_mu(upper_stats)
         lower_stats = _attach_mu(lower_stats)
 
-        upper_intensity = [s["mean"] for s in upper_stats]
-        lower_intensity = [s["mean"] for s in lower_stats]
-        diagonal_intensity = [s["mean"] for s in diagonal_stats]
-        upper_mu = [s["mu_coal"] for s in upper_stats]
-        lower_mu = [s["mu_coal"] for s in lower_stats]
+        upper_intensity = np.array([s["mean"] for s in upper_stats], dtype=float)
+        lower_intensity = np.array([s["mean"] for s in lower_stats], dtype=float)
+        upper_mu = np.array([s["mu_coal"] for s in upper_stats], dtype=float)
+        lower_mu = np.array([s["mu_coal"] for s in lower_stats], dtype=float)
 
-        # Plot 1: Intensity vs position (upper vs lower vs diagonal)
+        expected_per_side = int((grid_size * (grid_size - 1)) / 2)
+        if len(upper_intensity) != expected_per_side or len(lower_intensity) != expected_per_side:
+            raise ValueError(
+                "Circle partition validation failed: "
+                f"expected {expected_per_side} samples per side, "
+                f"found upper={len(upper_intensity)}, lower={len(lower_intensity)}."
+            )
+
+        upper_intensity_mean = float(np.mean(upper_intensity))
+        lower_intensity_mean = float(np.mean(lower_intensity))
+        upper_mu_mean = float(np.mean(upper_mu))
+        lower_mu_mean = float(np.mean(lower_mu))
+
+        # Plot 1: Bar graph of mean intensity (upper anti-diagonal sample vs lower anti-diagonal sample)
         fig1, ax1 = plt.subplots(figsize=(12, 6))
-        ax1.plot(np.arange(1, len(upper_intensity) + 1), upper_intensity, marker="o", linewidth=2, label="Upper (Coal)")
-        ax1.plot(np.arange(1, len(lower_intensity) + 1), lower_intensity, marker="s", linewidth=2, label="Lower (Coal)")
-        ax1.plot(np.arange(1, len(diagonal_intensity) + 1), diagonal_intensity, marker="^", linewidth=2, label="Diagonal (Air = I0)")
-        ax1.set_xlabel("Position Index", fontweight="bold")
+        labels = [
+            f"Upper Anti-Diagonal ({expected_per_side})",
+            f"Lower Anti-Diagonal ({expected_per_side})",
+        ]
+        x = np.arange(len(labels))
+        intensity_vals = [upper_intensity_mean, lower_intensity_mean]
+        bars1 = ax1.bar(x, intensity_vals, color=["#4c78a8", "#f58518"], width=0.6)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(labels)
+        for bar, val in zip(bars1, intensity_vals):
+            ax1.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.1f}", ha="center", va="bottom", fontsize=10)
+        ax1.set_xlabel("Sample Group", fontweight="bold")
         ax1.set_ylabel("Mean Intensity (I)", fontweight="bold")
-        ax1.set_title("Intensity vs Position (Upper/Lower/Diagonal)", fontweight="bold")
+        ax1.set_title("Mean Intensity Comparison (Upper vs Lower Anti-Diagonal Samples)", fontweight="bold")
         ax1.grid(True, alpha=0.3)
-        ax1.legend()
         plt.tight_layout()
 
         buf1 = io.BytesIO()
@@ -610,15 +634,18 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         intensity_plot_image = base64.b64encode(buf1.getvalue()).decode("utf-8")
         plt.close(fig1)
 
-        # Plot 2: μ vs position (upper vs lower)
+        # Plot 2: Bar graph of mean μ (upper anti-diagonal sample vs lower anti-diagonal sample)
         fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(np.arange(1, len(upper_mu) + 1), upper_mu, marker="o", linewidth=2, label="Upper μ")
-        ax2.plot(np.arange(1, len(lower_mu) + 1), lower_mu, marker="s", linewidth=2, label="Lower μ")
-        ax2.set_xlabel("Position Index", fontweight="bold")
+        mu_vals = [upper_mu_mean, lower_mu_mean]
+        bars2 = ax2.bar(x, mu_vals, color=["#54a24b", "#e45756"], width=0.6)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(labels)
+        for bar, val in zip(bars2, mu_vals):
+            ax2.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.5f}", ha="center", va="bottom", fontsize=10)
+        ax2.set_xlabel("Sample Group", fontweight="bold")
         ax2.set_ylabel("μ (1/mm)", fontweight="bold")
-        ax2.set_title("Coal Linear Attenuation Coefficient (μ) vs Position", fontweight="bold")
+        ax2.set_title("Mean μ Comparison (Upper vs Lower Anti-Diagonal Samples)", fontweight="bold")
         ax2.grid(True, alpha=0.3)
-        ax2.legend()
         plt.tight_layout()
 
         buf2 = io.BytesIO()
@@ -632,10 +659,20 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             "x_coal_mm": x_coal_mm,
             "anti_air_cv": anti_air_cv,
             "air_cv_threshold": air_cv_threshold,
-            "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
-            "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
-            "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,
-            "lower_mu_std": float(np.std(lower_mu)) if lower_mu else None,
+            "upper_intensity_avg": upper_intensity_mean,
+            "lower_intensity_avg": lower_intensity_mean,
+            "upper_mu_avg": upper_mu_mean,
+            "lower_mu_avg": lower_mu_mean,
+            "upper_mu_std": float(np.std(upper_mu)),
+            "lower_mu_std": float(np.std(lower_mu)),
+            # Compatibility keys for existing UI summary table.
+            "lower_avg_mean": lower_intensity_mean,
+            "upper_avg_mean": upper_intensity_mean,
+            "mean_difference": float(abs(upper_intensity_mean - lower_intensity_mean)),
+            "lower_avg_median": float(np.mean([float(s["median"]) for s in lower_stats])),
+            "upper_avg_median": float(np.mean([float(s["median"]) for s in upper_stats])),
+            "lower_std_means": float(np.std(lower_intensity)),
+            "upper_std_means": float(np.std(upper_intensity)),
         }
 
         return {

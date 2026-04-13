@@ -394,6 +394,38 @@
             font-size: 1.3rem;
         }
 
+        .final-plots-section {
+            margin-top: 24px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 24px;
+        }
+
+        .final-plots-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 18px;
+        }
+
+        .final-plot-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        .final-plot-card h3 {
+            background: #667eea;
+            color: white;
+            padding: 12px 15px;
+            font-size: 1.05rem;
+            margin: 0;
+        }
+
+        .final-plot-card > div {
+            padding: 12px;
+        }
+
         .stats-table {
             width: 100%;
             border-collapse: collapse;
@@ -760,8 +792,7 @@
                 </div>
 
                 <div class="stats-section">
-                    <h3>⚖️ Diagonal Comparison Statistics</h3>
-                    <div id="diagonalComparison"></div>
+                    <h3>⚖️ Diagonal Comparison Statistics (Table)</h3>
                     <div id="diagonalSummary"></div>
                 </div>
 
@@ -769,6 +800,20 @@
                     <h3>🧭 Invalid ROI Guide</h3>
                     <div id="circleInvalidRoiImage"></div>
                     <div id="circleInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
+                </div>
+
+                <div class="final-plots-section">
+                    <h3 style="margin-bottom: 16px;">📉 Final Comparison Plots</h3>
+                    <div class="final-plots-grid">
+                        <div class="final-plot-card">
+                            <h3>Intensity (I) Comparison Plot</h3>
+                            <div id="circleFinalIntensityPlot"></div>
+                        </div>
+                        <div class="final-plot-card">
+                            <h3>μ (Attenuation Coefficient) Comparison Plot</h3>
+                            <div id="circleFinalMuPlot"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Export Section -->
@@ -802,8 +847,8 @@
                     <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #17a2b8;">
                         <strong>📖 Block Detection Info:</strong>
                         <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
-                            <li><strong>Detected:</strong> Blocks 2 and 4 are auto-detected from the image</li>
-                            <li><strong>Calculated:</strong> Blocks 1 and 3 positions are calculated based on detected blocks spacing</li>
+                            <li><strong>Detected:</strong> Air Blocks 1 and 3 are detected from image contours</li>
+                            <li><strong>Calculated:</strong> Block 2 is interpolated at midpoint; Block 4 is extrapolated using the same spacing vector</li>
                             <li><strong>Mean Value:</strong> Average pixel intensity (16-bit: 0-65535)</li>
                             <li><strong>Rectangularity:</strong> How rectangular the shape is (0.0-1.0). 1.0 = perfect rectangle</li>
                         </ul>
@@ -842,8 +887,7 @@
                 </div>
 
                 <div class="stats-section">
-                    <h3>📊 Block Comparison - Block 1 vs Block 3</h3>
-                    <div id="blockComparisonImage"></div>
+                    <h3>📊 Block Comparison Summary</h3>
                     <div id="blockComparisonSummary"></div>
                 </div>
 
@@ -851,6 +895,20 @@
                     <h3>🧭 Invalid ROI Guide</h3>
                     <div id="blockInvalidRoiImage"></div>
                     <div id="blockInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
+                </div>
+
+                <div class="final-plots-section">
+                    <h3 style="margin-bottom: 16px;">📉 Final Comparison Plots</h3>
+                    <div class="final-plots-grid">
+                        <div class="final-plot-card">
+                            <h3>Intensity (I) Comparison Plot</h3>
+                            <div id="blockFinalIntensityPlot"></div>
+                        </div>
+                        <div class="final-plot-card">
+                            <h3>μ (Attenuation Coefficient) Regression/Comparison Plot</h3>
+                            <div id="blockFinalMuPlot"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Export Section -->
@@ -1071,6 +1129,8 @@
             document.getElementById('circleInvalidRoiSection').style.display = 'none'
             document.getElementById('circleInvalidRoiImage').innerHTML = ''
             document.getElementById('circleInvalidRoiHint').textContent = ''
+            document.getElementById('circleFinalIntensityPlot').innerHTML = ''
+            document.getElementById('circleFinalMuPlot').innerHTML = ''
             
             await asyncio.sleep(0.1)
             
@@ -1170,6 +1230,8 @@
             document.getElementById('blockInvalidRoiSection').style.display = 'none'
             document.getElementById('blockInvalidRoiImage').innerHTML = ''
             document.getElementById('blockInvalidRoiHint').textContent = ''
+            document.getElementById('blockFinalIntensityPlot').innerHTML = ''
+            document.getElementById('blockFinalMuPlot').innerHTML = ''
             
             num_subdivisions = int(document.getElementById('numSubdivisions').value)
             
@@ -1273,7 +1335,12 @@
                 window.scrollTo({'top': scroll_y, 'behavior': 'smooth'})
                 
                 block_count = len(result.get('all_blocks', []))
-                show_message(f"Block detection complete! Found {block_count} total blocks ({result['count']} detected).", False)
+                detected_count = len([b for b in result.get('all_blocks', []) if b.get('type') == 'detected'])
+                calculated_count = len([b for b in result.get('all_blocks', []) if b.get('type') == 'calculated'])
+                show_message(
+                    f"Block detection complete! Found {block_count} total blocks ({detected_count} detected, {calculated_count} calculated).",
+                    False
+                )
                 
             except Exception as e:
                 console.error(f"Error: {str(e)}")
@@ -1436,10 +1503,15 @@
             """Display block comparison results"""
             try:
                 console.log("=== display_block_comparison_results called ===")
-                comparison_div = document.getElementById('blockComparisonImage')
-                if comparison_div and 'comparison_image' in comparison_result:
-                    comparison_div.innerHTML = f'<img src="data:image/png;base64,{comparison_result["comparison_image"]}" alt="Block Comparison" style="max-width: 100%; border-radius: 10px;" />'
-                    console.log("Comparison image set")
+                intensity_div = document.getElementById('blockFinalIntensityPlot')
+                if intensity_div and 'intensity_plot_image' in comparison_result:
+                    intensity_div.innerHTML = f'<img src="data:image/png;base64,{comparison_result["intensity_plot_image"]}" alt="Block Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                    console.log("Block final intensity plot set")
+
+                mu_div = document.getElementById('blockFinalMuPlot')
+                if mu_div and 'mu_plot_image' in comparison_result:
+                    mu_div.innerHTML = f'<img src="data:image/png;base64,{comparison_result["mu_plot_image"]}" alt="Block Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                    console.log("Block final mu plot set")
                 
                 if 'summary' not in comparison_result:
                     console.error("No summary in comparison_result")
@@ -1508,8 +1580,13 @@
 
         def display_diagonal_results(diagonal_result):
             """Display diagonal comparison results"""
-            comparison_div = document.getElementById('diagonalComparison')
-            comparison_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["comparison_image"]}" alt="Diagonal Comparison" style="max-width: 100%; border-radius: 10px;" />'
+            intensity_div = document.getElementById('circleFinalIntensityPlot')
+            if 'intensity_plot_image' in diagonal_result:
+                intensity_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["intensity_plot_image"]}" alt="Circle Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
+
+            mu_div = document.getElementById('circleFinalMuPlot')
+            if 'mu_plot_image' in diagonal_result:
+                mu_div.innerHTML = f'<img src="data:image/png;base64,{diagonal_result["mu_plot_image"]}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
             
             summary = diagonal_result['summary']
             summary_div = document.getElementById('diagonalSummary')
@@ -1521,28 +1598,28 @@
                     <thead>
                         <tr>
                             <th>Metric</th>
-                            <th>Lower Diagonal</th>
-                            <th>Upper Diagonal</th>
+                            <th>Upper Anti-Diagonal Sample</th>
+                            <th>Lower Anti-Diagonal Sample</th>
                             <th>Difference</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>Average Mean</td>
-                            <td>{summary['lower_avg_mean']:.1f}</td>
                             <td>{summary['upper_avg_mean']:.1f}</td>
+                            <td>{summary['lower_avg_mean']:.1f}</td>
                             <td>{summary['mean_difference']:.1f}</td>
                         </tr>
                         <tr>
                             <td>Average Median</td>
-                            <td>{summary['lower_avg_median']:.1f}</td>
                             <td>{summary['upper_avg_median']:.1f}</td>
+                            <td>{summary['lower_avg_median']:.1f}</td>
                             <td>{abs(summary['lower_avg_median'] - summary['upper_avg_median']):.1f}</td>
                         </tr>
                         <tr>
                             <td>Std of Means</td>
-                            <td>{summary['lower_std_means']:.1f}</td>
                             <td>{summary['upper_std_means']:.1f}</td>
+                            <td>{summary['lower_std_means']:.1f}</td>
                             <td>-</td>
                         </tr>
                     </tbody>
@@ -1649,7 +1726,7 @@
                 const details = document.createElement('details');
                 details.className = 'collapsible-panel';
                 details.classList.add(section.classList.contains('result-image') ? 'result-panel' : 'stats-panel');
-                details.open = true;
+                details.open = false;
 
                 const summary = document.createElement('summary');
                 summary.textContent = title;
@@ -1969,9 +2046,15 @@
             pdf.text('Diagonal Comparison Statistics', margin, yPos);
             yPos += 5;
             
-            const diagonalImg = getImageDataFromElement('diagonalComparison');
-            if (diagonalImg) {
-                const result = await addImageToPdf(pdf, diagonalImg, margin, yPos, contentWidth, 90);
+            const circleIntensityImg = getImageDataFromElement('circleFinalIntensityPlot');
+            if (circleIntensityImg) {
+                const result = await addImageToPdf(pdf, circleIntensityImg, margin, yPos, contentWidth, 80);
+                yPos += result.height + 8;
+            }
+
+            const circleMuImg = getImageDataFromElement('circleFinalMuPlot');
+            if (circleMuImg) {
+                const result = await addImageToPdf(pdf, circleMuImg, margin, yPos, contentWidth, 80);
                 yPos += result.height + 8;
             }
 
@@ -2128,9 +2211,15 @@
             pdf.text('Block Comparison - Block 1 vs Block 3', margin, yPos);
             yPos += 5;
             
-            const comparisonImg = getImageDataFromElement('blockComparisonImage');
-            if (comparisonImg) {
-                const result = await addImageToPdf(pdf, comparisonImg, margin, yPos, contentWidth, 90);
+            const blockIntensityImg = getImageDataFromElement('blockFinalIntensityPlot');
+            if (blockIntensityImg) {
+                const result = await addImageToPdf(pdf, blockIntensityImg, margin, yPos, contentWidth, 80);
+                yPos += result.height + 8;
+            }
+
+            const blockMuImg = getImageDataFromElement('blockFinalMuPlot');
+            if (blockMuImg) {
+                const result = await addImageToPdf(pdf, blockMuImg, margin, yPos, contentWidth, 80);
                 yPos += result.height + 8;
             }
 
@@ -2183,7 +2272,8 @@
                 { id: 'maskImage', name: 'circle_mask.png' },
                 { id: 'gridImage', name: 'circle_grid.png' },
                 { id: 'histogramImage', name: 'circle_histogram.png' },
-                { id: 'diagonalComparison', name: 'circle_diagonal_comparison.png' }
+                { id: 'circleFinalIntensityPlot', name: 'circle_intensity_comparison.png' },
+                { id: 'circleFinalMuPlot', name: 'circle_mu_comparison.png' }
             ];
             
             images.forEach((item, index) => {
@@ -2204,7 +2294,8 @@
                 { id: 'subdivisionHistogram2', name: 'block2_subdivision_histogram.png' },
                 { id: 'subdivisionHistogram3', name: 'block3_subdivision_histogram.png' },
                 { id: 'subdivisionHistogram4', name: 'block4_subdivision_histogram.png' },
-                { id: 'blockComparisonImage', name: 'block_comparison.png' }
+                { id: 'blockFinalIntensityPlot', name: 'block_intensity_comparison.png' },
+                { id: 'blockFinalMuPlot', name: 'block_mu_comparison.png' }
             ];
             
             images.forEach((item, index) => {

@@ -72,6 +72,26 @@ def _mean_intensity_in_box(img_16bit, box, shrink_ratio=ROI_SHRINK_RATIO):
     return float(np.mean(pixel_values)), pixel_values
 
 
+def _build_axis_aligned_box(center, width, height):
+    """Build rectangular ROI around center using locked width/height dimensions."""
+    cx, cy = float(center[0]), float(center[1])
+    half_w = float(width) / 2.0
+    half_h = float(height) / 2.0
+    x0 = int(round(cx - half_w))
+    x1 = int(round(cx + half_w))
+    y0 = int(round(cy - half_h))
+    y1 = int(round(cy + half_h))
+    return np.array(
+        [
+            [x0, y0],
+            [x1, y0],
+            [x1, y1],
+            [x0, y1],
+        ],
+        dtype=np.int32,
+    )
+
+
 def _validate_block_orientation(img_16bit, all_blocks):
     """Validate SOP orientation: darkest side (10 mm) must be at block bottom."""
     if len(all_blocks) == 0:
@@ -240,8 +260,8 @@ def process_blocks(file_bytes, params):
                 f"Detected valid contours: {len(valid_blocks)}."
             )
 
-        # New spatial sequence:
-        # 1) detect Block 1 and Block 3 (leftmost and rightmost)
+        # Anchor-and-Project spatial sequence:
+        # 1) detect Air Block 1 and Air Block 3 (leftmost and rightmost)
         block_1 = valid_blocks[0]
         block_3 = valid_blocks[-1]
         x1, y1 = block_1["center"]
@@ -249,52 +269,54 @@ def process_blocks(file_bytes, params):
         if x3 <= x1:
             raise ValueError("Block geometry validation failed: Block 3 must be to the right of Block 1.")
 
-        # 2) detect Block 2 in between Block 1 and Block 3
-        between = [b for b in valid_blocks[1:-1] if x1 < b["center"][0] < x3]
-        if len(between) == 0:
-            raise ValueError(
-                "Block detection failed: unable to detect Block 2 between Block 1 and Block 3. "
-                "Adjust block detection parameters in the UI and retry."
+        # 2) choose anchor from Air blocks by best rectangular quality (cleanest ROI).
+        def _anchor_score(block):
+            """Rank anchor by rectangularity (primary), then solidity and area as tie-breakers."""
+            return (
+                float(block.get("rectangularity", 0.0)),
+                float(block.get("solidity", 0.0)),
+                float(block.get("area", 0.0)),
             )
-        midpoint = (x1 + x3) / 2.0
-        block_2 = min(between, key=lambda b: abs(b["center"][0] - midpoint))
-        x2, y2 = block_2["center"]
-        if not (x1 < x2 < x3):
-            raise ValueError("Block geometry validation failed: Block 2 is not spatially between Block 1 and Block 3.")
 
-        # 3) extrapolate Block 4 using spacing delta
-        dx12 = x2 - x1
-        dx23 = x3 - x2
-        dy12 = y2 - y1
-        dy23 = y3 - y2
-        dx_ref = int(round((dx12 + dx23) / 2.0))
-        dy_ref = int(round((dy12 + dy23) / 2.0))
+        anchor_block = max((block_1, block_3), key=_anchor_score)
+        locked_width = float(anchor_block["width"])
+        locked_height = float(anchor_block["height"])
+        if locked_width <= 0 or locked_height <= 0:
+            raise ValueError("Block geometry validation failed: anchor block has invalid dimensions.")
+
+        # 3) locate Block 2 by interpolation (exact midpoint of centers).
+        center1 = (float(x1), float(y1))
+        center3 = (float(x3), float(y3))
+        center2 = (
+            (center1[0] + center3[0]) / 2.0,
+            (center1[1] + center3[1]) / 2.0,
+        )
+        if not (center1[0] < center2[0] < center3[0]):
+            raise ValueError("Block geometry validation failed: interpolated Block 2 is not between Block 1 and Block 3.")
+
+        # 4) locate Block 4 by extrapolation from spacing vector (Block1 -> Block2).
+        dx_ref = int(round(center2[0] - center1[0]))
+        dy_ref = int(round(center2[1] - center1[1]))
         if dx_ref <= 0:
             raise ValueError("Block geometry validation failed: invalid x-spacing for Block 4 extrapolation.")
+        center4 = (
+            center3[0] + dx_ref,
+            center3[1] + dy_ref,
+        )
 
-        box3 = np.array(block_3["box"], dtype=np.int32)
-        box4 = box3 + np.array([dx_ref, dy_ref], dtype=np.int32)
-        center4 = (int(block_3["center"][0] + dx_ref), int(block_3["center"][1] + dy_ref))
+        # Apply locked anchor dimensions to ALL four ROIs.
+        box1 = _build_axis_aligned_box(center1, locked_width, locked_height)
+        box2 = _build_axis_aligned_box(center2, locked_width, locked_height)
+        box3 = _build_axis_aligned_box(center3, locked_width, locked_height)
+        box4 = _build_axis_aligned_box(center4, locked_width, locked_height)
 
-        def _create_block_dict(block_id, detection_type, block_dict=None, center=None, box=None):
-            if block_dict is not None:
-                b_center = block_dict["center"]
-                b_box = block_dict["box"]
-                width = block_dict["width"]
-                height = block_dict["height"]
-                rectangularity = block_dict.get("rectangularity", 0.0)
-            else:
-                b_center = center
-                b_box = box
-                width = block_3["width"]
-                height = block_3["height"]
-                rectangularity = block_3.get("rectangularity", 0.0)
+        def _create_block_dict(block_id, detection_type, center, box, rectangularity):
             return {
                 "id": block_id,
-                "center": (int(b_center[0]), int(b_center[1])),
-                "box": np.array(b_box, dtype=np.int32).tolist(),
-                "width": float(width),
-                "height": float(height),
+                "center": (int(round(center[0])), int(round(center[1]))),
+                "box": np.array(box, dtype=np.int32).tolist(),
+                "width": float(locked_width),
+                "height": float(locked_height),
                 "mean_value": 0.0,
                 "rectangularity": float(rectangularity),
                 "classification": "Detected" if detection_type == "detected" else "Calculated",
@@ -302,10 +324,10 @@ def process_blocks(file_bytes, params):
             }
 
         all_blocks = [
-            _create_block_dict(1, "detected", block_dict=block_1),
-            _create_block_dict(2, "detected", block_dict=block_2),
-            _create_block_dict(3, "detected", block_dict=block_3),
-            _create_block_dict(4, "calculated", center=center4, box=box4),
+            _create_block_dict(1, "detected", center1, box1, block_1.get("rectangularity", 0.0)),
+            _create_block_dict(2, "calculated", center2, box2, anchor_block.get("rectangularity", 0.0)),
+            _create_block_dict(3, "detected", center3, box3, block_3.get("rectangularity", 0.0)),
+            _create_block_dict(4, "calculated", center4, box4, anchor_block.get("rectangularity", 0.0)),
         ]
 
         h, w = img_16bit.shape[:2]

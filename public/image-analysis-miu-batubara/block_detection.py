@@ -16,14 +16,16 @@ AIR_GRADIENT_MIN_SCORE = 1.6
 AIR_STEP_MAX_REL_DIFF = 0.20
 AIR_STEP_MEAN_REL_DIFF = 0.10
 SPIKE_CURVATURE_SIGMA_MULTIPLIER = 4.0
+AIR_BLOCK_VALIDATION_CODE = "E_BLOCK_AIR_ROI"
 AIR_BLOCK_VALIDATION_ERROR = (
-    "Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
+    f"{AIR_BLOCK_VALIDATION_CODE}: Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
     "or are incorrectly oriented. Expected arrangement: Block 1 leftmost and Block 3 rightmost. "
     "The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
 )
 
 
 def _apply_intensity_correction(value, offset=0.0, scale=1.0, eps=1e-9):
+    """Apply correction in order (value + offset) * scale, then floor to eps."""
     corrected = (float(value) + float(offset)) * float(scale)
     return float(max(corrected, eps))
 

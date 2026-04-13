@@ -1146,7 +1146,7 @@
                                 display_diagonal_results(diagonal_result)
                         except Exception as diag_error:
                             diag_msg = str(diag_error)
-                            if "Air reference circles on the anti-diagonal" in diag_msg:
+                            if "E_CIRCLE_AIR_ROI" in diag_msg:
                                 try:
                                     invalid_roi = visualize_circle_invalid_roi(file_bytes, grid_result)
                                     display_circle_invalid_roi_guidance(invalid_roi)
@@ -1271,7 +1271,7 @@
                                 display_block_comparison_results(comparison_result)
                         except Exception as cmp_error:
                             cmp_msg = str(cmp_error)
-                            if "Air reference blocks (Block 1 & Block 3)" in cmp_msg:
+                            if "E_BLOCK_AIR_ROI" in cmp_msg:
                                 try:
                                     invalid_roi = visualize_block_invalid_roi(file_bytes, subdivision_result)
                                     display_block_invalid_roi_guidance(invalid_roi)

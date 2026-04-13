@@ -12,14 +12,16 @@ DEBUG = True
 # Coefficient of Variation (CV = std/mean) threshold for anti-diagonal air circles.
 # AIR_CV_THRESHOLD=0.05 means CV > 5% indicates likely ROI contamination by acrylic wall/noise.
 AIR_CV_THRESHOLD = 0.05
+AIR_DIAGONAL_VALIDATION_CODE = "E_CIRCLE_AIR_ROI"
 AIR_DIAGONAL_VALIDATION_ERROR = (
-    "Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
+    f"{AIR_DIAGONAL_VALIDATION_CODE}: Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
     "Please adjust the Minimum/Maximum Diameter or Threshold parameters to ensure the circles fit strictly "
     "inside the empty physical holes."
 )
 
 
 def _apply_intensity_correction(value, offset=0.0, scale=1.0, eps=1e-9):
+    """Apply correction in order (value + offset) * scale, then floor to eps."""
     corrected = (float(value) + float(offset)) * float(scale)
     return float(max(corrected, eps))
 

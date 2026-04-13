@@ -444,8 +444,10 @@ def compare_diagonals(file_bytes, grid_results):
         if len(diagonal_stats) == 0:
             return None
 
-        # I0 from diagonal air circles (global reference for ratio method).
+        # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
+        # Unit is pixel intensity from the 16-bit image.
         i0_air = float(np.mean([s["mean"] for s in diagonal_stats]))
+        # Coal thickness used in ratio method, in millimeters.
         x_coal_mm = 2.0
         eps = 1e-9
 

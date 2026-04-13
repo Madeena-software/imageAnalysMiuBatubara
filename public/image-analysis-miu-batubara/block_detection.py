@@ -507,6 +507,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
       -ln(It / I0) = μ_coal * x_coal + (μ_acrylic * 4)
 
     We fit y = m*x + b using numpy.polyfit(x, y, 1), where m is μ_coal.
+    The intercept b is the fixed acrylic contribution (μ_acrylic * 4 mm),
+    because acrylic thickness is constant for all subdivisions.
     """
     try:
         img_16bit = _load_image(file_bytes)
@@ -590,7 +592,9 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         block3_stats = _attach_thickness(block3_stats)
         block4_stats = _attach_thickness(block4_stats)
 
-        # I0 definition from AIR blocks (block 2/4) at x=10 mm, using the darkest (minimum) intensity.
+        # I0 definition from AIR blocks (block 2/4) at x=10 mm.
+        # We use the darkest (minimum) value to follow the requirement's
+        # conservative reference for the x=10 mm air step.
         air_x10_values = [s["mean"] for s in (block2_stats + block4_stats) if s.get("x_coal_mm") == 10]
         if len(air_x10_values) == 0:
             return None
@@ -612,7 +616,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
             # Linear regression using numpy.polyfit(x, y, 1): slope = μ_coal.
             slope, intercept = np.polyfit(x, y, 1)
 
-            # Per-step apparent μ for line visualization requested by UI.
+            # Per-step apparent μ for visualization only.
+            # The fitted μ_coal slope from polyfit is the physically estimated coefficient.
             mu_point = y / np.clip(x, eps, None)
 
             return {

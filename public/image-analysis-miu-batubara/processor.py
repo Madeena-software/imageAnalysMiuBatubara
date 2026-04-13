@@ -114,6 +114,7 @@ def build_circle_attenuation_summary(diagonal_result):
 def build_block_attenuation_summary(comparison_result):
     """Create a normalized block attenuation summary for UI rendering."""
     summary = (comparison_result or {}).get("summary", {})
+    # Backward-compatible fallback: older payloads may expose coal μ as block1/block3.
     mu_block2 = float(summary.get("mu_block2", summary.get("mu_block1", 0.0)))
     mu_block4 = float(summary.get("mu_block4", summary.get("mu_block3", 0.0)))
     delta_mu = abs(mu_block2 - mu_block4)

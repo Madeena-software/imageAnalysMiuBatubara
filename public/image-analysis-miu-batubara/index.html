@@ -408,7 +408,7 @@
 
         .attenuation-comparison h3 {
             margin: 0 0 8px 0;
-            color: #334;
+            color: #333;
             font-size: 1.1rem;
         }
 
@@ -1287,8 +1287,8 @@
             document.getElementById('circleParametersDetails').open = False
             circle_master = document.getElementById('circleMasterDetails')
             circle_master.open = False
-            for detail in circle_master.querySelectorAll('details'):
-                detail.open = False
+            for nested_detail in circle_master.querySelectorAll('details'):
+                nested_detail.open = False
             
             await asyncio.sleep(0.1)
             
@@ -1410,8 +1410,8 @@
             document.getElementById('blockParametersDetails').open = False
             block_master = document.getElementById('blockMasterDetails')
             block_master.open = False
-            for detail in block_master.querySelectorAll('details'):
-                detail.open = False
+            for nested_detail in block_master.querySelectorAll('details'):
+                nested_detail.open = False
             
             num_subdivisions = int(document.getElementById('numSubdivisions').value)
             

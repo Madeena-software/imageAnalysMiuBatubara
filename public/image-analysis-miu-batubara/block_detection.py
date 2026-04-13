@@ -13,6 +13,9 @@ DEBUG = True
 # before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
 AIR_STEP_MAX_REL_DIFF = 0.20
+AIR_STEP_MEAN_REL_DIFF = 0.12
+AIR_GRADIENT_MIN_SCORE = 0.80
+SPIKE_CURVATURE_SIGMA_MULTIPLIER = 3.0
 AIR_BLOCK_VALIDATION_CODE = "E_BLOCK_AIR_ROI"
 AIR_BLOCK_VALIDATION_ERROR = (
     f"{AIR_BLOCK_VALIDATION_CODE}: Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
@@ -726,6 +729,11 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         img_16bit = _load_and_validate_image(file_bytes)
         params = params or {}
         air_step_max_rel_diff = float(params.get("air_step_max_rel_diff", AIR_STEP_MAX_REL_DIFF))
+        air_step_mean_rel_diff = float(params.get("air_step_mean_rel_diff", AIR_STEP_MEAN_REL_DIFF))
+        air_gradient_min_score = float(params.get("air_gradient_min_score", AIR_GRADIENT_MIN_SCORE))
+        spike_curvature_sigma_multiplier = float(
+            params.get("spike_curvature_sigma_multiplier", SPIKE_CURVATURE_SIGMA_MULTIPLIER)
+        )
         subdivision_data = subdivisions["subdivisions"]
         expected_steps = 10
         eps = 1e-9
@@ -793,6 +801,20 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
+        def _monotonic_gradient_score(values):
+            if len(values) < 2:
+                return 0.0
+            return float(np.mean(np.diff(values) <= 0))
+
+        def _has_spike(values):
+            if len(values) < 3:
+                return False
+            curvature = np.abs(np.diff(values, n=2))
+            if float(np.std(curvature)) == 0.0:
+                return False
+            limit = float(np.mean(curvature) + (spike_curvature_sigma_multiplier * np.std(curvature)))
+            return bool(np.any(curvature > limit))
+
         # Validate only the bottom (max thickness) air step from Block 1 and Block 3.
         bottom_step_b1 = max(block1_stats, key=lambda s: float(s["x_coal_mm"]))
         bottom_step_b3 = max(block3_stats, key=lambda s: float(s["x_coal_mm"]))
@@ -800,6 +822,20 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         bottom_air3 = float(bottom_step_b3["mean"])
         bottom_rel_diff = abs(bottom_air1 - bottom_air3) / max((bottom_air1 + bottom_air3) / 2.0, eps)
         if bottom_rel_diff > air_step_max_rel_diff:
+            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+
+        step_rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)
+        mean_step_rel_diff = float(np.mean(step_rel_diff))
+        if mean_step_rel_diff > air_step_mean_rel_diff:
+            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+
+        gradient_score_b1 = _monotonic_gradient_score(air1)
+        gradient_score_b3 = _monotonic_gradient_score(air3)
+        gradient_score = float((gradient_score_b1 + gradient_score_b3) / 2.0)
+        if gradient_score < air_gradient_min_score:
+            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
+
+        if _has_spike(air1) or _has_spike(air3):
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         # Step-wise air reference from Block 1 and Block 3.
@@ -879,7 +915,9 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             "orientation": orientation,
             "i0_air_x10": i0_air_x10,
             "air_step_max_rel_diff": air_step_max_rel_diff,
+            "air_step_mean_rel_diff": air_step_mean_rel_diff,
             "air_bottom_rel_diff": float(bottom_rel_diff),
+            "air_gradient_score": gradient_score,
             "mu_block2": block2_model["mu_coal"],
             "mu_block4": block4_model["mu_coal"],
             "mu_acrylic_block2": block2_model["mu_acrylic"],

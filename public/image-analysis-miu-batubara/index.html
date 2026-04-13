@@ -201,6 +201,42 @@
             margin-bottom: 30px;
         }
 
+        details.parameters-section {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        details.parameters-section > summary {
+            cursor: pointer;
+            list-style: none;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 1.5rem;
+            font-weight: 700;
+            padding: 24px 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        details.parameters-section > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.parameters-section > summary::before {
+            content: "▶";
+            display: inline-block;
+            margin-right: 10px;
+            transition: transform 0.2s ease;
+            font-size: 1rem;
+        }
+
+        details.parameters-section[open] > summary::before {
+            transform: rotate(90deg);
+        }
+
+        .parameters-inner {
+            padding: 0 30px 30px;
+        }
+
         .parameters-section h2 {
             color: #333;
             margin-bottom: 20px;
@@ -660,8 +696,9 @@
             </div>
 
             <!-- Circle Parameters Section -->
-            <div class="parameters-section" id="circleParams">
-                <h2>⚙️ Circle Detection Parameters</h2>
+            <details class="parameters-section" id="circleParams" open>
+                <summary>⚙️ Circle Detection Parameters</summary>
+                <div class="parameters-inner">
                 <div class="param-grid">
                     <div class="param-item">
                         <label for="thresholdValue">Threshold (pixel value)</label>
@@ -698,11 +735,13 @@
                 <button type="button" class="process-btn" id="processBtn" disabled>
                     🚀 Process Circle Detection
                 </button>
-            </div>
+                </div>
+            </details>
 
             <!-- Block Parameters Section -->
-            <div class="parameters-section" id="blockParams" style="display: none;">
-                <h2>⚙️ Block Detection Parameters</h2>
+            <details class="parameters-section" id="blockParams" style="display: none;" open>
+                <summary>⚙️ Block Detection Parameters</summary>
+                <div class="parameters-inner">
                 <div class="param-grid">
                     <div class="param-item">
                         <label for="blockThreshold">Threshold (pixel value)</label>
@@ -744,7 +783,8 @@
                 <button type="button" class="process-btn" id="processBlockBtn" disabled>
                     🚀 Process Block Detection
                 </button>
-            </div>
+                </div>
+            </details>
 
             <!-- Loading Section -->
             <div class="loading" id="loadingSection">
@@ -755,16 +795,15 @@
             <!-- Results Section -->
             <div class="results" id="resultsSection">
                 <h2>📊 Results</h2>
-                
-                <div class="results-grid">
-                    <div class="result-image">
-                        <h3>Detection Result</h3>
-                        <div id="detectionImage"></div>
-                    </div>
-                    <div class="result-image">
-                        <h3 id="maskTitle">Threshold Mask</h3>
-                        <div id="maskImage"></div>
-                    </div>
+
+                <div class="result-image">
+                    <h3>Processed Image (Contours / ROI)</h3>
+                    <div id="detectionImage"></div>
+                </div>
+
+                <div class="result-image">
+                    <h3 id="maskTitle">Threshold Mask</h3>
+                    <div id="maskImage"></div>
                 </div>
 
                 <div class="stats-section">
@@ -830,16 +869,15 @@
             <!-- Block Detection Results -->
             <div class="results" id="blockResultsSection">
                 <h2>📊 Block Detection Results</h2>
-                
-                <div class="results-grid">
-                    <div class="result-image">
-                        <h3>Block Detection Result</h3>
-                        <div id="blockDetectionImage"></div>
-                    </div>
-                    <div class="result-image">
-                        <h3 id="blockMaskTitle">Threshold Mask</h3>
-                        <div id="blockMaskImage"></div>
-                    </div>
+
+                <div class="result-image">
+                    <h3>Processed Image (Contours / ROI)</h3>
+                    <div id="blockDetectionImage"></div>
+                </div>
+
+                <div class="result-image">
+                    <h3 id="blockMaskTitle">Threshold Mask</h3>
+                    <div id="blockMaskImage"></div>
                 </div>
 
                 <div class="stats-section">
@@ -1184,6 +1222,7 @@
                 
                 document.getElementById('loadingSection').classList.remove('active')
                 document.getElementById('resultsSection').classList.add('active')
+                document.getElementById('circleParams').open = False
                 document.getElementById('processBtn').disabled = False
                 
                 # Scroll to results
@@ -1320,6 +1359,7 @@
                 block_results.classList.add('active')
                 
                 console.log("Classes after add:", block_results.className)
+                document.getElementById('blockParams').open = False
                 
                 document.getElementById('processBlockBtn').disabled = False
                 

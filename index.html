@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redirecting…</title>
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        const destination = document.getElementById("app-link")?.getAttribute("href");
+        if (destination) {
+          window.location.replace(destination);
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <p>
+      Redirecting to the application…
+      <a id="app-link" href="public/image-analysis-miu-batubara/index.html">Continue</a>
+    </p>
+  </body>
+</html>

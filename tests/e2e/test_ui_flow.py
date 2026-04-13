@@ -17,6 +17,7 @@ pytestmark = [pytest.mark.e2e]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_URL_PATH = "/public/image-analysis-miu-batubara/index.html"
+SERVER_STARTUP_TIMEOUT_SECONDS = 20
 
 
 def _free_port() -> int:
@@ -34,7 +35,7 @@ def e2e_base_url():
     cmd = ["python", "-m", "http.server", str(port), "--bind", "127.0.0.1"]
     proc = subprocess.Popen(cmd, cwd=str(REPO_ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        deadline = time.time() + 20
+        deadline = time.time() + SERVER_STARTUP_TIMEOUT_SECONDS
         while time.time() < deadline:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 if sock.connect_ex(("127.0.0.1", port)) == 0:

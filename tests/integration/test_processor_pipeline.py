@@ -111,7 +111,7 @@ def test_golden_circle_pipeline_deterministic_with_mock_dom(circle_golden_base64
 
 
 @pytest.mark.integration
-def test_golden_block_pipeline_plausibility_and_r2(block_golden_base64):
+def test_golden_block_pipeline_plausibility_and_r_squared(block_golden_base64):
     # Relax only strict air-reference guards for deterministic golden integration coverage.
     old_grad = block_detection.AIR_GRADIENT_MIN_SCORE
     old_step_max = block_detection.AIR_STEP_MAX_REL_DIFF

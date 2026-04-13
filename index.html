@@ -6,7 +6,9 @@
   <title>Image Analysis MIU Batubara</title>
 </head>
 <body>
-  <p>Redirecting to app... <a id="manual-open-link" href="./public/image-analysis-miu-batubara/">Open manually</a></p>
+  <main aria-live="polite">
+    <p>Redirecting to app... <a id="manual-open-link" href="./public/image-analysis-miu-batubara/">Open manually</a></p>
+  </main>
   <script>
     const targetPath = './public/image-analysis-miu-batubara/';
     const targetUrl = new URL(targetPath, window.location.href).href;
@@ -14,7 +16,9 @@
     if (manualLink) {
       manualLink.href = targetUrl;
     }
-    window.location.replace(targetUrl);
+    setTimeout(() => {
+      window.location.replace(targetUrl);
+    }, 2000);
   </script>
 </body>
 </html>

@@ -12,12 +12,10 @@ DEBUG = True
 # Shrink each ROI by scaling polygon dimensions to 88% of original (12% total shrink from center)
 # before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
-AIR_GRADIENT_MIN_SCORE = 1.6
 AIR_STEP_MAX_REL_DIFF = 0.20
-AIR_STEP_MEAN_REL_DIFF = 0.10
-SPIKE_CURVATURE_SIGMA_MULTIPLIER = 4.0
+AIR_BLOCK_VALIDATION_CODE = "E_BLOCK_AIR_ROI"
 AIR_BLOCK_VALIDATION_ERROR = (
-    "Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
+    f"{AIR_BLOCK_VALIDATION_CODE}: Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
     "or are incorrectly oriented. Expected arrangement: Block 1 leftmost and Block 3 rightmost. "
     "The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
 )
@@ -652,7 +650,41 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
         return None
 
 
-def compare_blocks_1_vs_3(file_bytes, subdivisions):
+def visualize_block_invalid_roi(file_bytes, subdivisions):
+    """Build guidance overlay highlighting Air reference ROIs (Block 1 & 3)."""
+    try:
+        img_16bit = _load_and_validate_image(file_bytes)
+        subdivision_data = subdivisions.get("subdivisions", [])
+        img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
+        img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
+
+        for sub in subdivision_data:
+            parent = int(sub.get("parent_block", 0))
+            box = np.array(sub["box"], dtype=np.int32)
+            if parent in (1, 3):
+                cv2.drawContours(img_rgb, [box], 0, (255, 0, 0), 2)
+                shrunk = _shrink_box(box, ROI_SHRINK_RATIO)
+                cv2.drawContours(img_rgb, [np.array(shrunk, dtype=np.int32)], 0, (0, 255, 255), 2)
+                center = tuple(map(int, sub["center"]))
+                cv2.putText(
+                    img_rgb,
+                    f"AIR {parent}.{sub['subdivision_id']}",
+                    (center[0] - 45, center[1] - 8),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    (255, 0, 0),
+                    1,
+                )
+
+        return {
+            "invalid_roi_image": _numpy_to_base64(img_rgb),
+            "hint": "Red=air reference ROI, yellow=shrunken sampling ROI. Tune block threshold so ROIs avoid bright container walls.",
+        }
+    except Exception as e:
+        raise ValueError(f"Block invalid ROI visualization failed: {str(e)}") from e
+
+
+def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
     """
     Beer-Lambert analysis for step-wedge blocks.
 
@@ -670,6 +702,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
     """
     try:
         img_16bit = _load_and_validate_image(file_bytes)
+        params = params or {}
+        air_step_max_rel_diff = float(params.get("air_step_max_rel_diff", AIR_STEP_MAX_REL_DIFF))
         subdivision_data = subdivisions["subdivisions"]
         expected_steps = 10
         eps = 1e-9
@@ -737,24 +771,13 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        air1_decrease_score = _monotonic_decrease_score(air1)
-        air3_decrease_score = _monotonic_decrease_score(air3)
-        if air1_decrease_score < AIR_GRADIENT_MIN_SCORE or air3_decrease_score < AIR_GRADIENT_MIN_SCORE:
-            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
-
-        rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)
-        if float(np.max(rel_diff)) > AIR_STEP_MAX_REL_DIFF or float(np.mean(rel_diff)) > AIR_STEP_MEAN_REL_DIFF:
-            raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
-
-        def _has_spike(values):
-            diffs = np.diff(values)
-            if len(diffs) < 3:
-                return False
-            curvature = np.abs(np.diff(diffs))
-            scale = np.std(diffs) + eps
-            return bool(np.max(curvature) > SPIKE_CURVATURE_SIGMA_MULTIPLIER * scale)
-
-        if _has_spike(air1) or _has_spike(air3):
+        # Validate only the bottom (max thickness) air step from Block 1 and Block 3.
+        bottom_step_b1 = max(block1_stats, key=lambda s: float(s["x_coal_mm"]))
+        bottom_step_b3 = max(block3_stats, key=lambda s: float(s["x_coal_mm"]))
+        bottom_air1 = float(bottom_step_b1["mean"])
+        bottom_air3 = float(bottom_step_b3["mean"])
+        bottom_rel_diff = abs(bottom_air1 - bottom_air3) / max((bottom_air1 + bottom_air3) / 2.0, eps)
+        if bottom_rel_diff > air_step_max_rel_diff:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         # Step-wise air reference from Block 1 and Block 3.
@@ -765,7 +788,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
         def _compute_mu_series(coal_stats):
             x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
-            i_t = np.array([max(float(s["mean"]), eps) for s in coal_stats], dtype=float)
+            i_t = np.array([float(s["mean"]) for s in coal_stats], dtype=float)
             i0 = np.clip(air_ref, eps, None)
             ratio = np.clip(i_t / i0, eps, None)
             y = -np.log(ratio)
@@ -833,6 +856,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         summary = {
             "orientation": orientation,
             "i0_air_x10": i0_air_x10,
+            "air_step_max_rel_diff": air_step_max_rel_diff,
+            "air_bottom_rel_diff": float(bottom_rel_diff),
             "mu_block2": block2_model["mu_coal"],
             "mu_block4": block4_model["mu_coal"],
             "mu_acrylic_block2": block2_model["mu_acrylic"],
@@ -904,5 +929,6 @@ __all__ = [
     "analyze_block_histograms",
     "subdivide_blocks",
     "analyze_subdivision_histograms",
+    "visualize_block_invalid_roi",
     "compare_blocks_1_vs_3",
 ]

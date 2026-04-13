@@ -9,6 +9,7 @@ from circle_detection import (
     compare_diagonals as _compare_diagonals,
     detect_grid_from_diagonal as _detect_grid_from_diagonal,
     process_tiff_image as _process_tiff_image,
+    visualize_circle_invalid_roi as _visualize_circle_invalid_roi,
 )
 from block_detection import (
     analyze_block_histograms as _analyze_block_histograms,
@@ -16,6 +17,7 @@ from block_detection import (
     compare_blocks_1_vs_3 as _compare_blocks_1_vs_3,
     process_blocks as _process_blocks,
     subdivide_blocks as _subdivide_blocks,
+    visualize_block_invalid_roi as _visualize_block_invalid_roi,
 )
 
 
@@ -44,8 +46,12 @@ def analyze_grid_histograms(file_bytes, grid_results):
     return _bridge_call("Grid histogram analysis failed", _analyze_grid_histograms, file_bytes, grid_results)
 
 
-def compare_diagonals(file_bytes, grid_results):
-    return _bridge_call("Circle physics analysis failed", _compare_diagonals, file_bytes, grid_results)
+def compare_diagonals(file_bytes, grid_results, params=None):
+    return _bridge_call("Circle physics analysis failed", _compare_diagonals, file_bytes, grid_results, params)
+
+
+def visualize_circle_invalid_roi(file_bytes, grid_results):
+    return _bridge_call("Circle invalid ROI visualization failed", _visualize_circle_invalid_roi, file_bytes, grid_results)
 
 
 # Block pipeline wrappers
@@ -79,8 +85,12 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
     )
 
 
-def compare_blocks_1_vs_3(file_bytes, subdivisions):
-    return _bridge_call("Block physics analysis failed", _compare_blocks_1_vs_3, file_bytes, subdivisions)
+def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
+    return _bridge_call("Block physics analysis failed", _compare_blocks_1_vs_3, file_bytes, subdivisions, params)
+
+
+def visualize_block_invalid_roi(file_bytes, subdivisions):
+    return _bridge_call("Block invalid ROI visualization failed", _visualize_block_invalid_roi, file_bytes, subdivisions)
 
 
 # Export functions used by PyScript UI
@@ -89,9 +99,11 @@ __all__ = [
     "detect_grid_from_diagonal",
     "analyze_grid_histograms",
     "compare_diagonals",
+    "visualize_circle_invalid_roi",
     "process_blocks",
     "analyze_block_histograms",
     "subdivide_blocks",
     "analyze_subdivision_histograms",
     "compare_blocks_1_vs_3",
+    "visualize_block_invalid_roi",
 ]

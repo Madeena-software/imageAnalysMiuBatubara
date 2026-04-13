@@ -12,8 +12,9 @@ DEBUG = True
 # Coefficient of Variation (CV = std/mean) threshold for anti-diagonal air circles.
 # AIR_CV_THRESHOLD=0.05 means CV > 5% indicates likely ROI contamination by acrylic wall/noise.
 AIR_CV_THRESHOLD = 0.05
+AIR_DIAGONAL_VALIDATION_CODE = "E_CIRCLE_AIR_ROI"
 AIR_DIAGONAL_VALIDATION_ERROR = (
-    "Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
+    f"{AIR_DIAGONAL_VALIDATION_CODE}: Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
     "Please adjust the Minimum/Maximum Diameter or Threshold parameters to ensure the circles fit strictly "
     "inside the empty physical holes."
 )
@@ -450,7 +451,42 @@ def analyze_grid_histograms(file_bytes, grid_results):
         return None
 
 
-def compare_diagonals(file_bytes, grid_results):
+def visualize_circle_invalid_roi(file_bytes, grid_results):
+    """Build guidance overlay highlighting anti-diagonal air reference ROIs."""
+    try:
+        img_16bit = _load_and_validate_image(file_bytes)
+        grid_data = grid_results["grid"]
+        img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
+        img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
+
+        for item in grid_data:
+            row, col = item["grid_pos"]
+            center = tuple(item["center"])
+            radius = int(item["radius"])
+            is_anti_air = (row + col) == 3
+            color = (255, 0, 0) if is_anti_air else (0, 255, 0)
+            label_prefix = "AIR" if is_anti_air else "ROI"
+            cv2.circle(img_rgb, center, radius, color, 3)
+            cv2.circle(img_rgb, center, int(radius * 0.7), color, 2)
+            cv2.putText(
+                img_rgb,
+                f"{label_prefix}[{row},{col}]",
+                (center[0] - 85, center[1] - radius - 12),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2,
+            )
+
+        return {
+            "invalid_roi_image": _numpy_to_base64(img_rgb),
+            "hint": "Anti-diagonal AIR ROIs are highlighted in red. Tune threshold and diameter so each ROI stays inside hole area.",
+        }
+    except Exception as e:
+        raise ValueError(f"Circle invalid ROI visualization failed: {str(e)}") from e
+
+
+def compare_diagonals(file_bytes, grid_results, params=None):
     """
     Beer-Lambert analysis for 4x4 circle grid.
 
@@ -464,6 +500,8 @@ def compare_diagonals(file_bytes, grid_results):
     """
     try:
         img_16bit = _load_and_validate_image(file_bytes)
+        params = params or {}
+        air_cv_threshold = float(params.get("air_cv_threshold", AIR_CV_THRESHOLD))
 
         grid_data = grid_results["grid"]
         circle_count = len(grid_data)
@@ -520,17 +558,17 @@ def compare_diagonals(file_bytes, grid_results):
                 "Circle validation failed: expected 4 anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
             )
-        anti_air_means = np.array([s["mean"] for s in anti_diagonal_stats], dtype=float)
+        anti_air_means = np.array([float(s["mean"]) for s in anti_diagonal_stats], dtype=float)
         anti_air_mean = float(np.mean(anti_air_means))
         if anti_air_mean <= 0:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
         anti_air_cv = float(np.std(anti_air_means) / anti_air_mean)
-        if anti_air_cv > AIR_CV_THRESHOLD:
+        if anti_air_cv > air_cv_threshold:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
         # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
         # Unit is pixel intensity from the 16-bit image.
-        i0_air = float(np.mean([s["mean"] for s in diagonal_stats]))
+        i0_air = float(np.mean([float(s["mean"]) for s in diagonal_stats]))
         # Coal thickness used in ratio method, in millimeters.
         x_coal_mm = 6.0
         eps = 1e-9
@@ -593,6 +631,7 @@ def compare_diagonals(file_bytes, grid_results):
             "i0_air": i0_air,
             "x_coal_mm": x_coal_mm,
             "anti_air_cv": anti_air_cv,
+            "air_cv_threshold": air_cv_threshold,
             "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
             "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
             "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,
@@ -618,5 +657,6 @@ __all__ = [
     "process_tiff_image",
     "detect_grid_from_diagonal",
     "analyze_grid_histograms",
+    "visualize_circle_invalid_roi",
     "compare_diagonals",
 ]

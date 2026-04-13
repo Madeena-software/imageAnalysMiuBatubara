@@ -656,6 +656,11 @@
                         <input type="number" id="minSolidity" value="0.7" min="0.1" max="1.0" step="0.05" />
                         <small><strong>Impact:</strong> How solid/filled the shape is (1.0 = no holes). Lower = accept shapes with holes/dents, Higher = only solid circles (default: 0.7)</small>
                     </div>
+                    <div class="param-item">
+                        <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
+                        <input type="number" id="circleAirCvThreshold" value="0.05" min="0.01" max="0.50" step="0.01" />
+                        <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.05)</small>
+                    </div>
                 </div>
 
                 <button type="button" class="process-btn" id="processBtn" disabled>
@@ -696,6 +701,11 @@
                         <label for="numSubdivisions">Subdivisions</label>
                         <input type="number" id="numSubdivisions" value="10" min="5" max="20" step="1" />
                         <small><strong>Impact:</strong> Number of subdivisions per block (default: 10)</small>
+                    </div>
+                    <div class="param-item">
+                        <label for="blockStepMaxRelDiff">Air Step Max Relative Diff</label>
+                        <input type="number" id="blockStepMaxRelDiff" value="0.20" min="0.05" max="1.00" step="0.01" />
+                        <small><strong>Impact:</strong> Higher allows larger difference between Block 1 vs Block 3 at the bottom (max-thickness) air step (default: 0.20)</small>
                     </div>
                 </div>
 
@@ -753,6 +763,12 @@
                     <h3>⚖️ Diagonal Comparison Statistics</h3>
                     <div id="diagonalComparison"></div>
                     <div id="diagonalSummary"></div>
+                </div>
+
+                <div class="stats-section" id="circleInvalidRoiSection" style="display:none;">
+                    <h3>🧭 Invalid ROI Guide</h3>
+                    <div id="circleInvalidRoiImage"></div>
+                    <div id="circleInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
                 </div>
 
                 <!-- Export Section -->
@@ -831,6 +847,12 @@
                     <div id="blockComparisonSummary"></div>
                 </div>
 
+                <div class="stats-section" id="blockInvalidRoiSection" style="display:none;">
+                    <h3>🧭 Invalid ROI Guide</h3>
+                    <div id="blockInvalidRoiImage"></div>
+                    <div id="blockInvalidRoiHint" style="margin-top:10px;color:#555;"></div>
+                </div>
+
                 <!-- Export Section -->
                 <div class="export-section">
                     <button type="button" class="export-btn" id="exportBlockPdfBtn">
@@ -889,11 +911,13 @@
             detect_grid_from_diagonal, 
             analyze_grid_histograms, 
             compare_diagonals,
+            visualize_circle_invalid_roi,
             process_blocks,
             analyze_block_histograms,
             subdivide_blocks,
             analyze_subdivision_histograms,
-            compare_blocks_1_vs_3
+            compare_blocks_1_vs_3,
+            visualize_block_invalid_roi
         )
 
         # Global variables
@@ -1039,9 +1063,14 @@
                 'max_diameter': int(document.getElementById('maxDiameter').value),
                 'min_circularity': float(document.getElementById('minCircularity').value),
                 'min_solidity': float(document.getElementById('minSolidity').value),
+                'air_cv_threshold': float(document.getElementById('circleAirCvThreshold').value),
                 'expected_count': 16,
                 'grid_cols': 4,
             }
+
+            document.getElementById('circleInvalidRoiSection').style.display = 'none'
+            document.getElementById('circleInvalidRoiImage').innerHTML = ''
+            document.getElementById('circleInvalidRoiHint').textContent = ''
             
             await asyncio.sleep(0.1)
             
@@ -1079,9 +1108,19 @@
                         loading_msg.textContent = 'Comparing diagonal statistics...'
                         await asyncio.sleep(0.05)
                         
-                        diagonal_result = compare_diagonals(file_bytes, grid_result)
-                        if diagonal_result:
-                            display_diagonal_results(diagonal_result)
+                        try:
+                            diagonal_result = compare_diagonals(file_bytes, grid_result, params)
+                            if diagonal_result:
+                                display_diagonal_results(diagonal_result)
+                        except Exception as diag_error:
+                            diag_msg = str(diag_error)
+                            if "E_CIRCLE_AIR_ROI" in diag_msg:
+                                try:
+                                    invalid_roi = visualize_circle_invalid_roi(file_bytes, grid_result)
+                                    display_circle_invalid_roi_guidance(invalid_roi)
+                                except Exception as viz_error:
+                                    console.error(f"Circle invalid ROI visualization error: {str(viz_error)}")
+                            show_message(f"Circle analysis warning: {diag_msg}", True)
                 
                 document.getElementById('loadingSection').classList.remove('active')
                 document.getElementById('resultsSection').classList.add('active')
@@ -1125,7 +1164,12 @@
                 'max_length_rectangular': int(document.getElementById('maxLength').value),
                 'min_rectangularity': float(document.getElementById('minRectangularity').value),
                 'min_solidity': float(document.getElementById('blockMinSolidity').value),
+                'air_step_max_rel_diff': float(document.getElementById('blockStepMaxRelDiff').value),
             }
+
+            document.getElementById('blockInvalidRoiSection').style.display = 'none'
+            document.getElementById('blockInvalidRoiImage').innerHTML = ''
+            document.getElementById('blockInvalidRoiHint').textContent = ''
             
             num_subdivisions = int(document.getElementById('numSubdivisions').value)
             
@@ -1184,10 +1228,20 @@
                         loading_msg.textContent = 'Comparing blocks 1 vs 3...'
                         await asyncio.sleep(0.05)
                         
-                        comparison_result = compare_blocks_1_vs_3(file_bytes, subdivision_result)
-                        if comparison_result:
-                            console.log("Displaying comparison results...")
-                            display_block_comparison_results(comparison_result)
+                        try:
+                            comparison_result = compare_blocks_1_vs_3(file_bytes, subdivision_result, params)
+                            if comparison_result:
+                                console.log("Displaying comparison results...")
+                                display_block_comparison_results(comparison_result)
+                        except Exception as cmp_error:
+                            cmp_msg = str(cmp_error)
+                            if "E_BLOCK_AIR_ROI" in cmp_msg:
+                                try:
+                                    invalid_roi = visualize_block_invalid_roi(file_bytes, subdivision_result)
+                                    display_block_invalid_roi_guidance(invalid_roi)
+                                except Exception as viz_error:
+                                    console.error(f"Block invalid ROI visualization error: {str(viz_error)}")
+                            show_message(f"Block analysis warning: {cmp_msg}", True)
                 else:
                     console.log("Not enough blocks for subdivision. Need 4, got:", result.get('all_blocks', []))
                 
@@ -1497,6 +1551,26 @@
             '''
             summary_div.innerHTML = summary_html
 
+        def display_circle_invalid_roi_guidance(invalid_roi_result):
+            """Display invalid ROI image for circle air references."""
+            section = document.getElementById('circleInvalidRoiSection')
+            img_div = document.getElementById('circleInvalidRoiImage')
+            hint_div = document.getElementById('circleInvalidRoiHint')
+            if invalid_roi_result and 'invalid_roi_image' in invalid_roi_result:
+                img_div.innerHTML = f'<img src="data:image/png;base64,{invalid_roi_result["invalid_roi_image"]}" alt="Circle Invalid ROI Guide" style="max-width: 100%; border-radius: 10px;" />'
+                hint_div.textContent = invalid_roi_result.get('hint', '')
+                section.style.display = 'block'
+
+        def display_block_invalid_roi_guidance(invalid_roi_result):
+            """Display invalid ROI image for block air references."""
+            section = document.getElementById('blockInvalidRoiSection')
+            img_div = document.getElementById('blockInvalidRoiImage')
+            hint_div = document.getElementById('blockInvalidRoiHint')
+            if invalid_roi_result and 'invalid_roi_image' in invalid_roi_result:
+                img_div.innerHTML = f'<img src="data:image/png;base64,{invalid_roi_result["invalid_roi_image"]}" alt="Block Invalid ROI Guide" style="max-width: 100%; border-radius: 10px;" />'
+                hint_div.textContent = invalid_roi_result.get('hint', '')
+                section.style.display = 'block'
+
         async def export_circle_pdf(event):
             """Export circle detection results as PDF"""
             try:
@@ -1647,7 +1721,8 @@
                     'Min Diameter': document.getElementById('minDiameter').value + ' px',
                     'Max Diameter': document.getElementById('maxDiameter').value + ' px',
                     'Min Circularity': document.getElementById('minCircularity').value,
-                    'Min Solidity': document.getElementById('minSolidity').value
+                    'Min Solidity': document.getElementById('minSolidity').value,
+                    'Air CV Threshold': document.getElementById('circleAirCvThreshold').value
                 };
             } else {
                 return {
@@ -1656,7 +1731,8 @@
                     'Max Length': document.getElementById('maxLength').value + ' px',
                     'Min Rectangularity': document.getElementById('minRectangularity').value,
                     'Min Solidity': document.getElementById('blockMinSolidity').value,
-                    'Subdivisions': document.getElementById('numSubdivisions').value
+                    'Subdivisions': document.getElementById('numSubdivisions').value,
+                    'Air Step Max Rel Diff': document.getElementById('blockStepMaxRelDiff').value
                 };
             }
         }

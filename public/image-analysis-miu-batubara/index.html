@@ -848,7 +848,7 @@
                         <strong>📖 Block Detection Info:</strong>
                         <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
                             <li><strong>Detected:</strong> Air Blocks 1 and 3 are detected from image contours</li>
-                            <li><strong>Calculated:</strong> Blocks 2 and 4 are projected using Anchor-and-Project geometry</li>
+                            <li><strong>Calculated:</strong> Block 2 is interpolated at midpoint; Block 4 is extrapolated using the same spacing vector</li>
                             <li><strong>Mean Value:</strong> Average pixel intensity (16-bit: 0-65535)</li>
                             <li><strong>Rectangularity:</strong> How rectangular the shape is (0.0-1.0). 1.0 = perfect rectangle</li>
                         </ul>
@@ -1598,28 +1598,28 @@
                     <thead>
                         <tr>
                             <th>Metric</th>
-                            <th>Lower Anti-Diagonal Sample</th>
                             <th>Upper Anti-Diagonal Sample</th>
+                            <th>Lower Anti-Diagonal Sample</th>
                             <th>Difference</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>Average Mean</td>
-                            <td>{summary['lower_avg_mean']:.1f}</td>
                             <td>{summary['upper_avg_mean']:.1f}</td>
+                            <td>{summary['lower_avg_mean']:.1f}</td>
                             <td>{summary['mean_difference']:.1f}</td>
                         </tr>
                         <tr>
                             <td>Average Median</td>
-                            <td>{summary['lower_avg_median']:.1f}</td>
                             <td>{summary['upper_avg_median']:.1f}</td>
+                            <td>{summary['lower_avg_median']:.1f}</td>
                             <td>{abs(summary['lower_avg_median'] - summary['upper_avg_median']):.1f}</td>
                         </tr>
                         <tr>
                             <td>Std of Means</td>
-                            <td>{summary['lower_std_means']:.1f}</td>
                             <td>{summary['upper_std_means']:.1f}</td>
+                            <td>{summary['lower_std_means']:.1f}</td>
                             <td>-</td>
                         </tr>
                     </tbody>

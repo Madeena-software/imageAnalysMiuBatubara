@@ -271,6 +271,7 @@ def process_blocks(file_bytes, params):
 
         # 2) choose anchor from Air blocks by best rectangular quality (cleanest ROI).
         def _anchor_score(block):
+            """Rank anchor by rectangularity (primary), then solidity and area as tie-breakers."""
             return (
                 float(block.get("rectangularity", 0.0)),
                 float(block.get("solidity", 0.0)),

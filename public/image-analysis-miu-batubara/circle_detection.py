@@ -517,14 +517,18 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         anti_diagonal_items = []
         upper_items = []
         lower_items = []
+        max_row = max(item["grid_pos"][0] for item in grid_data)
+        max_col = max(item["grid_pos"][1] for item in grid_data)
+        grid_size = max(max_row, max_col) + 1
+        anti_diagonal_sum = grid_size - 1
 
         for item in grid_data:
             row, col = item["grid_pos"]
             if row == col:
                 diagonal_items.append(item)
-            elif (row + col) == 3:
+            elif (row + col) == anti_diagonal_sum:
                 anti_diagonal_items.append(item)
-            elif (row + col) < 3:
+            elif (row + col) < anti_diagonal_sum:
                 upper_items.append(item)
             else:
                 lower_items.append(item)
@@ -554,9 +558,9 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             raise ValueError("Physics validation failed: no diagonal (air reference) circles were available.")
 
         anti_diagonal_stats = _measure(anti_diagonal_items)
-        if len(anti_diagonal_stats) != 4:
+        if len(anti_diagonal_stats) != grid_size:
             raise ValueError(
-                "Circle validation failed: expected 4 anti-diagonal air reference circles, "
+                f"Circle validation failed: expected {grid_size} anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
             )
         anti_air_means = np.array([float(s["mean"]) for s in anti_diagonal_stats], dtype=float)
@@ -592,9 +596,12 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         upper_mu = np.array([s["mu_coal"] for s in upper_stats], dtype=float)
         lower_mu = np.array([s["mu_coal"] for s in lower_stats], dtype=float)
 
-        if len(upper_intensity) != 6 or len(lower_intensity) != 6:
+        expected_per_side = int((grid_size * (grid_size - 1)) / 2)
+        if len(upper_intensity) != expected_per_side or len(lower_intensity) != expected_per_side:
             raise ValueError(
-                "Circle partition validation failed: expected 6 circles for upper and 6 circles for lower anti-diagonal samples."
+                "Circle partition validation failed: "
+                f"expected {expected_per_side} samples per side, "
+                f"found upper={len(upper_intensity)}, lower={len(lower_intensity)}."
             )
 
         upper_intensity_mean = float(np.mean(upper_intensity))
@@ -604,7 +611,10 @@ def compare_diagonals(file_bytes, grid_results, params=None):
 
         # Plot 1: Bar graph of mean intensity (upper anti-diagonal sample vs lower anti-diagonal sample)
         fig1, ax1 = plt.subplots(figsize=(12, 6))
-        labels = ["Upper Anti-Diagonal (6)", "Lower Anti-Diagonal (6)"]
+        labels = [
+            f"Upper Anti-Diagonal ({expected_per_side})",
+            f"Lower Anti-Diagonal ({expected_per_side})",
+        ]
         x = np.arange(len(labels))
         intensity_vals = [upper_intensity_mean, lower_intensity_mean]
         bars1 = ax1.bar(x, intensity_vals, color=["#4c78a8", "#f58518"], width=0.6)

@@ -1587,20 +1587,58 @@
                 return value
             return f"data:image/png;base64,{value}"
 
+        def safe_png_data_uri(image_value):
+            """Validate PNG data URI safety for DOM assignment."""
+            uri = to_data_uri_png(image_value)
+            if not uri.startswith("data:image/png;base64,"):
+                raise ValueError("Invalid PNG data URI prefix.")
+            payload = uri.split(",", 1)[1]
+            if not payload:
+                raise ValueError("Empty PNG data URI payload.")
+            allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+            if any(ch not in allowed for ch in payload):
+                raise ValueError("Invalid PNG data URI payload characters.")
+            return uri
+
+        def render_plot_image(container_el, image_id, image_value, alt_text):
+            """Render a validated plot image into a target container."""
+            if container_el is None:
+                return
+            src = safe_png_data_uri(image_value)
+            img_el = document.createElement("img")
+            img_el.id = image_id
+            img_el.alt = alt_text
+            img_el.src = src
+            img_el.style.maxWidth = "100%"
+            img_el.style.borderRadius = "10px"
+            container_el.replaceChildren(img_el)
+
         def display_diagonal_results(diagonal_result):
             """Display diagonal comparison results"""
             intensity_div = document.getElementById('circleFinalIntensityPlot')
             if 'intensity_plot_image' in diagonal_result:
-                intensity_src = to_data_uri_png(diagonal_result["intensity_plot_image"])
-                intensity_div.innerHTML = f'<img id="intensityPlotImage" src="{intensity_src}" alt="Circle Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                render_plot_image(
+                    intensity_div,
+                    "intensityPlotImage",
+                    diagonal_result["intensity_plot_image"],
+                    "Circle Intensity Comparison",
+                )
 
             mu_div = document.getElementById('circleFinalMuPlot')
             if 'mu_plot_image' in diagonal_result:
-                mu_src = to_data_uri_png(diagonal_result["mu_plot_image"])
-                mu_div.innerHTML = f'<img id="muPlotImage" src="{mu_src}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                render_plot_image(
+                    mu_div,
+                    "muPlotImage",
+                    diagonal_result["mu_plot_image"],
+                    "Circle Mu Comparison",
+                )
             elif 'comparison_image' in diagonal_result:
-                mu_src = to_data_uri_png(diagonal_result["comparison_image"])
-                mu_div.innerHTML = f'<img id="muPlotImage" src="{mu_src}" alt="Circle Mu Comparison" style="max-width: 100%; border-radius: 10px;" />'
+                render_plot_image(
+                    mu_div,
+                    "muPlotImage",
+                    diagonal_result["comparison_image"],
+                    "Circle Mu Comparison",
+                )
             
             summary = diagonal_result['summary']
             summary_div = document.getElementById('diagonalSummary')

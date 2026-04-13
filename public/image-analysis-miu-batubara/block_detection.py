@@ -801,7 +801,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        def _monotonic_gradient_score(values):
+        def _monotonic_decrease_score(values):
             if len(values) < 2:
                 return 0.0
             return float(np.mean(np.diff(values) <= 0))
@@ -810,9 +810,17 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             if len(values) < 3:
                 return False
             curvature = np.abs(np.diff(values, n=2))
-            if float(np.std(curvature)) == 0.0:
-                return False
-            limit = float(np.mean(curvature) + (spike_curvature_sigma_multiplier * np.std(curvature)))
+            median_curvature = float(np.median(curvature))
+            mad_curvature = float(np.median(np.abs(curvature - median_curvature)))
+            if mad_curvature == 0.0:
+                std_curvature = float(np.std(curvature))
+                if std_curvature == 0.0:
+                    return False
+                limit = float(np.mean(curvature) + (spike_curvature_sigma_multiplier * std_curvature))
+            else:
+                # 1.4826 * MAD approximates standard deviation for normal-like distributions.
+                robust_sigma = 1.4826 * mad_curvature
+                limit = median_curvature + (spike_curvature_sigma_multiplier * robust_sigma)
             return bool(np.any(curvature > limit))
 
         # Validate only the bottom (max thickness) air step from Block 1 and Block 3.
@@ -829,8 +837,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         if mean_step_rel_diff > air_step_mean_rel_diff:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
-        gradient_score_b1 = _monotonic_gradient_score(air1)
-        gradient_score_b3 = _monotonic_gradient_score(air3)
+        gradient_score_b1 = _monotonic_decrease_score(air1)
+        gradient_score_b3 = _monotonic_decrease_score(air3)
         gradient_score = float((gradient_score_b1 + gradient_score_b3) / 2.0)
         if gradient_score < air_gradient_min_score:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)

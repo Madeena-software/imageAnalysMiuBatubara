@@ -127,3 +127,28 @@ def test_gradient_validation_raises_for_inverted_air(monkeypatch):
 
     with pytest.raises(ValueError, match="Validation Failed: The Air reference blocks"):
         block_detection.compare_blocks_1_vs_3(b"dummy", _make_subdivisions())
+
+
+@pytest.mark.unit
+def test_spike_validation_raises_for_air_reference_spike(monkeypatch):
+    air_spike = np.array([52000, 50000, 48000, 46000, 44000, 42000, 50000, 36000, 33000, 30500], dtype=float)
+    air_ref = np.array([51800, 49800, 47800, 45200, 42800, 40200, 37800, 35200, 32800, 30400], dtype=float)
+    coal = np.array([41000, 39000, 36500, 34000, 31500, 29000, 26500, 24000, 21500, 19500], dtype=float)
+    sequences = {1: air_spike, 2: coal, 3: air_ref, 4: coal}
+    counters = {1: 0, 2: 0, 3: 0, 4: 0}
+
+    def fake_load_and_validate(_file_bytes):
+        return np.ones((32, 32), dtype=np.uint16)
+
+    def fake_mean_intensity(_img, _box, _shrink):
+        block = int(_box[0][1] / 3)
+        idx = counters[block]
+        counters[block] += 1
+        val = float(sequences[block][idx])
+        return val, np.array([val], dtype=np.float64)
+
+    monkeypatch.setattr(block_detection, "_load_and_validate_image", fake_load_and_validate)
+    monkeypatch.setattr(block_detection, "_mean_intensity_in_box", fake_mean_intensity)
+
+    with pytest.raises(ValueError, match="Validation Failed: The Air reference blocks"):
+        block_detection.compare_blocks_1_vs_3(b"dummy", _make_subdivisions())

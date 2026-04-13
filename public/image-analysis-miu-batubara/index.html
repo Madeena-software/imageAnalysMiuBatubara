@@ -638,12 +638,12 @@
                     </div>
                     <div class="param-item">
                         <label for="minDiameter">Min Diameter (px)</label>
-                        <input type="number" id="minDiameter" value="50" min="10" max="500" step="5" />
+                        <input type="number" id="minDiameter" value="280" min="10" max="500" step="5" />
                         <small><strong>Impact:</strong> Circles smaller than this diameter are ignored. Lower = detect smaller circles, Higher = ignore small noise (default: 50 px)</small>
                     </div>
                     <div class="param-item">
                         <label for="maxDiameter">Max Diameter (px)</label>
-                        <input type="number" id="maxDiameter" value="357" min="50" max="1000" step="5" />
+                        <input type="number" id="maxDiameter" value="340" min="50" max="1000" step="5" />
                         <small><strong>Impact:</strong> Circles larger than this diameter are ignored. Lower = exclude large blobs, Higher = accept larger circles (default: 357 px)</small>
                     </div>
                     <div class="param-item">
@@ -669,7 +669,7 @@
                 <div class="param-grid">
                     <div class="param-item">
                         <label for="blockThreshold">Threshold (pixel value)</label>
-                        <input type="number" id="blockThreshold" value="55000" min="1000" max="65535" step="100" />
+                        <input type="number" id="blockThreshold" value="54000" min="1000" max="65535" step="100" />
                         <small><strong>Impact:</strong> Pixels BELOW this value are detected as blocks (default: 55000)</small>
                     </div>
                     <div class="param-item">
@@ -1223,8 +1223,6 @@
                 
             except Exception as e:
                 console.error(f"Error: {str(e)}")
-                import traceback
-                console.error(traceback.format_exc())
                 show_message(f"Error processing image: {str(e)}", True)
                 document.getElementById('loadingSection').classList.remove('active')
                 document.getElementById('processBlockBtn').disabled = False

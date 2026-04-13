@@ -20,6 +20,90 @@ def _load_image(file_bytes):
     return img_16bit
 
 
+def _load_and_validate_image(file_bytes):
+    """Strict SOP validation: only 16-bit grayscale TIFF images are accepted."""
+    try:
+        pil_img = Image.open(io.BytesIO(file_bytes))
+    except Exception as exc:
+        raise ValueError(f"Image format validation failed: unable to read image bytes ({exc}).") from exc
+
+    img_format = (pil_img.format or "unknown").upper()
+    if img_format != "TIFF":
+        raise ValueError(
+            f"Image format validation failed: expected 16-bit grayscale TIFF, got format '{img_format}'."
+        )
+
+    img = np.array(pil_img)
+    if img.ndim != 2:
+        raise ValueError(
+            f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
+        )
+    if img.dtype != np.uint16:
+        raise ValueError(
+            f"Image format validation failed: expected 16-bit TIFF (uint16), got dtype '{img.dtype}'."
+        )
+    return img
+
+
+def _validate_block_orientation(img_16bit, all_blocks):
+    """Validate SOP orientation: darkest side (10 mm) must be at block bottom."""
+    if len(all_blocks) == 0:
+        raise ValueError("Orientation validation failed: no blocks available for orientation check.")
+
+    candidate_blocks = [b for b in all_blocks if b.get("id") in (2, 4)]
+    if len(candidate_blocks) == 0:
+        candidate_blocks = all_blocks
+
+    inverted_votes = 0
+    checked = 0
+    h, w = img_16bit.shape[:2]
+
+    for block in candidate_blocks:
+        box = np.array(block["box"], dtype=np.int32)
+        x, y, bw, bh = cv2.boundingRect(box)
+        if bw <= 0 or bh <= 0:
+            continue
+
+        x0 = max(0, x)
+        y0 = max(0, y)
+        x1 = min(w, x + bw)
+        y1 = min(h, y + bh)
+        if x1 <= x0 or y1 <= y0:
+            continue
+
+        roi = img_16bit[y0:y1, x0:x1]
+        roi_mask = np.zeros(roi.shape, dtype=np.uint8)
+        shifted = box - np.array([x0, y0], dtype=np.int32)
+        cv2.fillPoly(roi_mask, [shifted], 255)
+
+        band = max(1, int((y1 - y0) * 0.2))
+        top_band = np.zeros_like(roi_mask)
+        bottom_band = np.zeros_like(roi_mask)
+        top_band[:band, :] = 255
+        bottom_band[-band:, :] = 255
+
+        top_mask = cv2.bitwise_and(roi_mask, top_band)
+        bottom_mask = cv2.bitwise_and(roi_mask, bottom_band)
+        top_vals = roi[top_mask == 255]
+        bottom_vals = roi[bottom_mask == 255]
+        if len(top_vals) == 0 or len(bottom_vals) == 0:
+            continue
+
+        checked += 1
+        top_mean = float(np.mean(top_vals))
+        bottom_mean = float(np.mean(bottom_vals))
+        if bottom_mean >= top_mean:
+            inverted_votes += 1
+
+    if checked == 0:
+        raise ValueError("Orientation validation failed: unable to sample top/bottom intensity from detected blocks.")
+    if inverted_votes > (checked / 2.0):
+        raise ValueError(
+            "Orientation validation failed: darkest 10 mm side is not at the bottom. "
+            "Upload image with correct orientation (10 mm darkest side at bottom) and retry."
+        )
+
+
 def _numpy_to_base64(img_array):
     if len(img_array.shape) == 2:
         pil_img = Image.fromarray(img_array, mode="L")
@@ -35,9 +119,7 @@ def _numpy_to_base64(img_array):
 def process_blocks(file_bytes, params):
     """Detect step-wedge reference blocks and infer full block layout (1..4)."""
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            return None
+        img_16bit = _load_and_validate_image(file_bytes)
 
         threshold_value = params.get("threshold_value", 55000)
         min_length_rectangular = params.get("min_length_rectangular", 1400)
@@ -249,6 +331,15 @@ def process_blocks(file_bytes, params):
                 }
             )
 
+        if len(all_blocks) != 4:
+            raise ValueError(
+                "Block count validation failed: expected exactly 4 blocks for physics pipeline, "
+                f"found {len(all_blocks)} (detected contours: {len(results)}). "
+                "Adjust block threshold/length filters and retry."
+            )
+
+        _validate_block_orientation(img_16bit, all_blocks)
+
         return {
             "blocks": results,
             "all_blocks": all_blocks,
@@ -258,12 +349,7 @@ def process_blocks(file_bytes, params):
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in process_blocks: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-        return None
+        raise ValueError(f"Block detection failed: {str(e)}") from e
 
 
 def analyze_block_histograms(file_bytes, all_blocks):
@@ -558,9 +644,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
       μ_coal = m + μ_acrylic
     """
     try:
-        img_16bit = _load_image(file_bytes)
-        if img_16bit is None:
-            return None
+        img_16bit = _load_and_validate_image(file_bytes)
 
         subdivision_data = subdivisions["subdivisions"]
 
@@ -644,7 +728,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         # conservative reference for the x=10 mm air step.
         air_x10_values = [s["mean"] for s in (block2_stats + block4_stats) if s.get("x_coal_mm") == 10]
         if len(air_x10_values) == 0:
-            return None
+            raise ValueError("Physics validation failed: unable to build air reference at x=10 mm.")
         i0_air = float(np.min(air_x10_values))
 
         eps = 1e-9
@@ -784,12 +868,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         }
 
     except Exception as e:
-        if DEBUG:
-            print(f"Error in compare_blocks_1_vs_3: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-        return None
+        raise ValueError(f"Block Beer-Lambert analysis failed: {str(e)}") from e
 
 
 __all__ = [

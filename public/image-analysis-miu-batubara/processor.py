@@ -21,42 +21,66 @@ from block_detection import (
 
 # Circle pipeline wrappers
 
+def _bridge_call(operation_name, fn, *args, **kwargs):
+    """Bridge Python exceptions to clean UI-readable errors."""
+    try:
+        result = fn(*args, **kwargs)
+    except Exception as exc:
+        raise RuntimeError(f"{operation_name}: {str(exc)}") from None
+    if result is None:
+        raise RuntimeError(f"{operation_name}: no result produced.")
+    return result
+
+
 def process_tiff_image(file_bytes, params):
-    return _process_tiff_image(file_bytes, params)
+    return _bridge_call("Circle processing failed", _process_tiff_image, file_bytes, params)
 
 
 def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
-    return _detect_grid_from_diagonal(file_bytes, initial_results, grid_size)
+    return _bridge_call("Grid detection failed", _detect_grid_from_diagonal, file_bytes, initial_results, grid_size)
 
 
 def analyze_grid_histograms(file_bytes, grid_results):
-    return _analyze_grid_histograms(file_bytes, grid_results)
+    return _bridge_call("Grid histogram analysis failed", _analyze_grid_histograms, file_bytes, grid_results)
 
 
 def compare_diagonals(file_bytes, grid_results):
-    return _compare_diagonals(file_bytes, grid_results)
+    return _bridge_call("Circle physics analysis failed", _compare_diagonals, file_bytes, grid_results)
 
 
 # Block pipeline wrappers
 
 def process_blocks(file_bytes, params):
-    return _process_blocks(file_bytes, params)
+    return _bridge_call("Block processing failed", _process_blocks, file_bytes, params)
 
 
 def analyze_block_histograms(file_bytes, all_blocks):
-    return _analyze_block_histograms(file_bytes, all_blocks)
+    return _bridge_call("Block histogram analysis failed", _analyze_block_histograms, file_bytes, all_blocks)
 
 
 def subdivide_blocks(file_bytes, all_blocks, num_subdivisions=10, scale_factor=2 / 3):
-    return _subdivide_blocks(file_bytes, all_blocks, num_subdivisions, scale_factor)
+    return _bridge_call(
+        "Block subdivision failed",
+        _subdivide_blocks,
+        file_bytes,
+        all_blocks,
+        num_subdivisions,
+        scale_factor,
+    )
 
 
 def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
-    return _analyze_subdivision_histograms(file_bytes, subdivisions, block_number)
+    return _bridge_call(
+        "Subdivision histogram analysis failed",
+        _analyze_subdivision_histograms,
+        file_bytes,
+        subdivisions,
+        block_number,
+    )
 
 
 def compare_blocks_1_vs_3(file_bytes, subdivisions):
-    return _compare_blocks_1_vs_3(file_bytes, subdivisions)
+    return _bridge_call("Block physics analysis failed", _compare_blocks_1_vs_3, file_bytes, subdivisions)
 
 
 # Export functions used by PyScript UI

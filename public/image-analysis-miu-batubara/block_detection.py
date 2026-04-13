@@ -911,48 +911,108 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         if bottom_rel_diff > air_step_max_rel_diff:
             air_validation_warning = AIR_BLOCK_VALIDATION_ERROR
 
-        # Step-wise air reference from Block 1 and Block 3.
-        air_ref = (air1 + air3) / 2.0
-        i0_air_x10 = float(air_ref[0])
-        if i0_air_x10 <= eps:
-            raise ValueError("Invalid I0 reference: air intensity at x=10 is too small.")
+        # Constant I0 reference from the bottom subdivision of Block 1 and Block 3.
+        i0_air_constant = float((bottom_air1 + bottom_air3) / 2.0)
+        if i0_air_constant <= eps:
+            raise ValueError("Invalid I0 reference: air intensity at the bottom step is too small.")
         max_ratio_clip = 1e300  # Keep ln() input finite while preserving physically large ratios.
 
-        def _compute_mu_series(coal_stats):
-            x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
-            i_t = np.array([float(s["mean"]) for s in coal_stats], dtype=float)
-            i0 = np.clip(air_ref, eps, None)
+        def _compute_mu_series(step_stats):
+            step_order = np.array([float(s["x_coal_mm"]) for s in step_stats], dtype=float)
+            acrylic_thickness = step_order + 3.0
+            coal_thickness = 11.0 - step_order
+            i_t = np.array([float(s["mean"]) for s in step_stats], dtype=float)
+            i0 = np.full_like(i_t, i0_air_constant, dtype=float)
             i_t_safe = np.clip(i_t, eps, None)
             ratio = np.clip(i0 / i_t_safe, eps, max_ratio_clip)
-            y = -np.log(ratio)
-            slope, intercept = np.polyfit(x, y, 1)
-            mu_acrylic = intercept / 14.0
-            mu_coal = slope + mu_acrylic
-            mu_point = (y - (mu_acrylic * (14.0 - x))) / np.clip(x, eps, None)
+            y_total = -np.log(ratio)
+
+            design_matrix = np.column_stack([acrylic_thickness, coal_thickness])
+            coeffs, residuals, rank, singular_values = np.linalg.lstsq(design_matrix, y_total, rcond=None)
+            mu_acrylic = float(coeffs[0])
+            mu_coal = float(coeffs[1])
+            y_fit = design_matrix @ coeffs
+            residual = y_total - y_fit
+            total_mu = y_total / 14.0
+            slope = mu_acrylic - mu_coal
+            intercept = 3.0 * mu_acrylic + 11.0 * mu_coal
+            mu_point = np.divide(y_total - (mu_acrylic * acrylic_thickness), coal_thickness, out=np.zeros_like(y_total), where=coal_thickness > eps)
+
             return {
-                "x": x,
+                "x": step_order,
+                "coal_thickness": coal_thickness,
+                "acrylic_thickness": acrylic_thickness,
                 "intensity": i_t,
-                "y": y,
+                "i0": i0,
+                "ratio": ratio,
+                "y": y_total,
+                "y_fit": y_fit,
+                "residual": residual,
+                "mu_total": total_mu,
                 "mu_point": mu_point,
-                "mu_coal": float(mu_coal),
-                "mu_acrylic": float(mu_acrylic),
-                "slope": float(slope),
-                "intercept": float(intercept),
+                "mu_coal": mu_coal,
+                "mu_acrylic": mu_acrylic,
+                "slope": slope,
+                "intercept": intercept,
+                "coeffs": coeffs.tolist(),
+                "rank": int(rank),
+                "singular_values": singular_values.tolist(),
             }
 
         block2_model = _compute_mu_series(block2_stats)
         block4_model = _compute_mu_series(block4_stats)
 
-        air_t = np.array([s["x_coal_mm"] for s in block1_stats], dtype=float)
-        air_mean = air_ref.tolist()
+        def _build_attenuation_rows(sample_label, model):
+            rows = []
+            for idx, (step_value, coal_value, acrylic_value, intensity_value, i0_value, ratio_value, y_value, y_fit_value, residual_value, mu_total_value) in enumerate(
+                zip(
+                    model["x"],
+                    model["coal_thickness"],
+                    model["acrylic_thickness"],
+                    model["intensity"],
+                    model["i0"],
+                    model["ratio"],
+                    model["y"],
+                    model["y_fit"],
+                    model["residual"],
+                    model["mu_total"],
+                ),
+                start=1,
+            ):
+                rows.append(
+                    {
+                        "sample": sample_label,
+                        "step": idx,
+                        "order": float(step_value),
+                        "acrylic_mm": float(acrylic_value),
+                        "coal_mm": float(coal_value),
+                        "total_mm": 14.0,
+                        "i0": float(i0_value),
+                        "intensity": float(intensity_value),
+                        "ratio": float(ratio_value),
+                        "y": float(y_value),
+                        "y_fit": float(y_fit_value),
+                        "residual": float(residual_value),
+                        "mu_total": float(mu_total_value),
+                        "mu_coal_point": float((y_value - (model["mu_acrylic"] * acrylic_value)) / max(coal_value, eps)),
+                    }
+                )
+            return rows
+
+        attenuation_matrix_rows = _build_attenuation_rows("Block 2 (Coal)", block2_model)
+        attenuation_matrix_rows.extend(_build_attenuation_rows("Block 4 (Coal)", block4_model))
+
+        step_axis = np.array([s["x_coal_mm"] for s in block1_stats], dtype=float)
+        air_mean = (air1 + air3) / 2.0
 
         fig1, ax1 = plt.subplots(figsize=(12, 6))
         ax1.plot(block2_model["x"], block2_model["intensity"], marker="o", linewidth=2, label="Block 2 (Coal)")
         ax1.plot(block4_model["x"], block4_model["intensity"], marker="s", linewidth=2, label="Block 4 (Coal)")
-        ax1.plot(air_t, air_mean, marker="^", linewidth=2, label="Air Ref (Block 1 & 3 avg)")
+        ax1.plot(step_axis, air_mean, marker="^", linewidth=1.5, linestyle="--", alpha=0.55, label="Air samples (Block 1 & 3 avg)")
+        ax1.axhline(i0_air_constant, color="#2f855a", linestyle="-", linewidth=2, label=f"Selected I0 constant = {i0_air_constant:.1f}")
         ax1.set_xlabel("Thickness x (mm)", fontweight="bold")
         ax1.set_ylabel("Mean Intensity (I)", fontweight="bold")
-        ax1.set_title("Intensity vs Subdivision Thickness", fontweight="bold")
+        ax1.set_title("Intensity vs Step Order with Constant I0", fontweight="bold")
         ax1.set_xticks(list(range(1, 11)))
         ax1.grid(True, alpha=0.3)
         ax1.legend()
@@ -965,12 +1025,12 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         plt.close(fig1)
 
         fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(block2_model["x"], block2_model["mu_point"], marker="o", linewidth=2, label="Block 2 μ(x)")
-        ax2.plot(block4_model["x"], block4_model["mu_point"], marker="s", linewidth=2, label="Block 4 μ(x)")
-        ax2.set_xlabel("Thickness x (mm)", fontweight="bold")
-        ax2.set_ylabel("μ (1/mm)", fontweight="bold")
+        ax2.plot(block2_model["x"], block2_model["mu_total"], marker="o", linewidth=2, label="Block 2 μ total")
+        ax2.plot(block4_model["x"], block4_model["mu_total"], marker="s", linewidth=2, label="Block 4 μ total")
+        ax2.set_xlabel("Step Order (bottom → top)", fontweight="bold")
+        ax2.set_ylabel("μ total (1/mm)", fontweight="bold")
         ax2.set_title(
-            f"Coal μ vs Thickness (fit μ2={block2_model['mu_coal']:.5f}, μ4={block4_model['mu_coal']:.5f})",
+            f"Total μ vs Step Order (fit μ2={block2_model['mu_coal']:.5f}, μ4={block4_model['mu_coal']:.5f})",
             fontweight="bold",
         )
         ax2.set_xticks(list(range(1, 11)))
@@ -984,9 +1044,78 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         mu_plot_image = base64.b64encode(buf2.getvalue()).decode("utf-8")
         plt.close(fig2)
 
+        def _r_squared(actual, predicted):
+            actual = np.asarray(actual, dtype=float)
+            predicted = np.asarray(predicted, dtype=float)
+            ss_res = float(np.sum((actual - predicted) ** 2))
+            ss_tot = float(np.sum((actual - np.mean(actual)) ** 2))
+            if ss_tot <= eps:
+                return float("nan")
+            return float(1.0 - (ss_res / ss_tot))
+
+        fig3, ax3 = plt.subplots(figsize=(12, 6))
+        x_fit = np.linspace(1.0, 10.0, 200)
+
+        block2_y_fit = block2_model["y_fit"]
+        block4_y_fit = block4_model["y_fit"]
+        block2_r2 = _r_squared(block2_model["y"], block2_y_fit)
+        block4_r2 = _r_squared(block4_model["y"], block4_y_fit)
+
+        attenuation_fit_rows = [
+            {
+                "sample": "Block 2 (Coal)",
+                "mu_acrylic": float(block2_model["mu_acrylic"]),
+                "slope": float((block2_model["coeffs"][0] - block2_model["coeffs"][1]) if len(block2_model["coeffs"]) == 2 else 0.0),
+                "intercept": float(3.0 * block2_model["mu_acrylic"] + 11.0 * block2_model["mu_coal"]),
+                "mu_coal": float(block2_model["mu_coal"]),
+                "r2": float(block2_r2),
+            },
+            {
+                "sample": "Block 4 (Coal)",
+                "mu_acrylic": float(block4_model["mu_acrylic"]),
+                "slope": float((block4_model["coeffs"][0] - block4_model["coeffs"][1]) if len(block4_model["coeffs"]) == 2 else 0.0),
+                "intercept": float(3.0 * block4_model["mu_acrylic"] + 11.0 * block4_model["mu_coal"]),
+                "mu_coal": float(block4_model["mu_coal"]),
+                "r2": float(block4_r2),
+            },
+        ]
+
+        ax3.scatter(block2_model["x"], block2_model["y"], color="#4c78a8", marker="o", s=45, label="Block 2 data")
+        ax3.plot(
+            x_fit,
+            block2_model["slope"] * x_fit + block2_model["intercept"],
+            color="#4c78a8",
+            linestyle="--",
+            linewidth=2,
+            label=f"Block 2 fit (R²={block2_r2:.4f})",
+        )
+        ax3.scatter(block4_model["x"], block4_model["y"], color="#f58518", marker="s", s=45, label="Block 4 data")
+        ax3.plot(
+            x_fit,
+            block4_model["slope"] * x_fit + block4_model["intercept"],
+            color="#f58518",
+            linestyle="--",
+            linewidth=2,
+            label=f"Block 4 fit (R²={block4_r2:.4f})",
+        )
+        ax3.set_xlabel("Step Order (bottom → top)", fontweight="bold")
+        ax3.set_ylabel("y = -ln(I0 / I)", fontweight="bold")
+        ax3.set_title("Total Attenuation Regression (Acrylic + Coal)", fontweight="bold")
+        ax3.set_xticks(list(range(1, 11)))
+        ax3.grid(True, alpha=0.3)
+        ax3.legend()
+        plt.tight_layout()
+
+        buf3 = io.BytesIO()
+        plt.savefig(buf3, format="png", dpi=100, bbox_inches="tight")
+        buf3.seek(0)
+        linear_regression_plot_image = base64.b64encode(buf3.getvalue()).decode("utf-8")
+        plt.close(fig3)
+
         summary = {
             "orientation": orientation,
-            "i0_air_x10": i0_air_x10,
+            "i0_air_x10": i0_air_constant,
+            "i0_air_constant": i0_air_constant,
             "air_step_max_rel_diff": air_step_max_rel_diff,
             "air_bottom_rel_diff": float(bottom_rel_diff),
             "mu_block2": block2_model["mu_coal"],
@@ -1010,6 +1139,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             "mean_difference_std": float(np.std(np.array([b1["mean"] - b3["mean"] for b1, b3 in zip(block1_stats, block3_stats)]))),
             "coal_difference_avg": float(np.mean(np.array([b2["mean"] - b4["mean"] for b2, b4 in zip(block2_stats, block4_stats)]))),
             "coal_difference_std": float(np.std(np.array([b2["mean"] - b4["mean"] for b2, b4 in zip(block2_stats, block4_stats)]))),
+            "r2_block2": block2_r2,
+            "r2_block4": block4_r2,
             # Backward compatibility aliases for callers that still expect
             # the old numbering where coal curves were exposed as block1/block3.
             "mu_block1": block2_model["mu_coal"],
@@ -1024,42 +1155,53 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             "block2_model": {
                 "x": block2_model["x"].tolist(),
                 "y": block2_model["y"].tolist(),
+                "y_fit": block2_model["y_fit"].tolist(),
+                "residual": block2_model["residual"].tolist(),
                 "mu_point": block2_model["mu_point"].tolist(),
                 "mu_coal": block2_model["mu_coal"],
                 "mu_acrylic": block2_model["mu_acrylic"],
-                "slope": block2_model["slope"],
-                "intercept": block2_model["intercept"],
+                "slope": float(block2_model["mu_acrylic"] - block2_model["mu_coal"]),
+                "intercept": float(3.0 * block2_model["mu_acrylic"] + 11.0 * block2_model["mu_coal"]),
             },
             "block4_model": {
                 "x": block4_model["x"].tolist(),
                 "y": block4_model["y"].tolist(),
+                "y_fit": block4_model["y_fit"].tolist(),
+                "residual": block4_model["residual"].tolist(),
                 "mu_point": block4_model["mu_point"].tolist(),
                 "mu_coal": block4_model["mu_coal"],
                 "mu_acrylic": block4_model["mu_acrylic"],
-                "slope": block4_model["slope"],
-                "intercept": block4_model["intercept"],
+                "slope": float(block4_model["mu_acrylic"] - block4_model["mu_coal"]),
+                "intercept": float(3.0 * block4_model["mu_acrylic"] + 11.0 * block4_model["mu_coal"]),
             },
             # Compatibility aliases for callers expecting old keys.
             "block1_model": {
                 "x": block2_model["x"].tolist(),
                 "y": block2_model["y"].tolist(),
+                "y_fit": block2_model["y_fit"].tolist(),
+                "residual": block2_model["residual"].tolist(),
                 "mu_point": block2_model["mu_point"].tolist(),
                 "mu_coal": block2_model["mu_coal"],
                 "mu_acrylic": block2_model["mu_acrylic"],
-                "slope": block2_model["slope"],
-                "intercept": block2_model["intercept"],
+                "slope": float(block2_model["mu_acrylic"] - block2_model["mu_coal"]),
+                "intercept": float(3.0 * block2_model["mu_acrylic"] + 11.0 * block2_model["mu_coal"]),
             },
             "block3_model": {
                 "x": block4_model["x"].tolist(),
                 "y": block4_model["y"].tolist(),
+                "y_fit": block4_model["y_fit"].tolist(),
+                "residual": block4_model["residual"].tolist(),
                 "mu_point": block4_model["mu_point"].tolist(),
                 "mu_coal": block4_model["mu_coal"],
                 "mu_acrylic": block4_model["mu_acrylic"],
-                "slope": block4_model["slope"],
-                "intercept": block4_model["intercept"],
+                "slope": float(block4_model["mu_acrylic"] - block4_model["mu_coal"]),
+                "intercept": float(3.0 * block4_model["mu_acrylic"] + 11.0 * block4_model["mu_coal"]),
             },
             "intensity_plot_image": intensity_plot_image,
             "mu_plot_image": mu_plot_image,
+            "linear_regression_plot_image": linear_regression_plot_image,
+            "attenuation_matrix_rows": attenuation_matrix_rows,
+            "attenuation_fit_rows": attenuation_fit_rows,
             "comparison_image": mu_plot_image,
             "summary": summary,
         }

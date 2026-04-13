@@ -1035,6 +1035,22 @@
                         </div>
                     </details>
 
+                    <details class="collapsible-panel stats-panel" id="blockLinearRegressionPlotDetails">
+                        <summary>📈 Linear Regression Plot: Intensity → Attenuation</summary>
+                        <div class="final-plots-section" style="margin-top: 0;">
+                            <div id="blockLinearRegressionPlot"></div>
+                        </div>
+                    </details>
+
+                    <details class="collapsible-panel stats-panel" id="blockAttenuationMatrixDetails">
+                        <summary>🧮 Step-by-Step Attenuation Matrix</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="blockAttenuationMatrixExplanation" style="background: #eef7ff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3498db; line-height: 1.7;"></div>
+                            <div id="blockAttenuationMatrix" style="overflow-x: auto;"></div>
+                            <div id="blockAttenuationFitSummary" style="margin-top: 18px;"></div>
+                        </div>
+                    </details>
+
                     <details class="collapsible-panel stats-panel" id="blockMuPlotDetails">
                         <summary>📉 μ (Attenuation Coefficient) Regression/Comparison Plot</summary>
                         <div class="final-plots-section" style="margin-top: 0;">
@@ -1466,6 +1482,10 @@
             document.getElementById('blockInvalidRoiImage').innerHTML = ''
             document.getElementById('blockInvalidRoiHint').textContent = ''
             document.getElementById('blockFinalIntensityPlot').innerHTML = ''
+            document.getElementById('blockLinearRegressionPlot').innerHTML = ''
+            document.getElementById('blockAttenuationMatrixExplanation').innerHTML = ''
+            document.getElementById('blockAttenuationMatrix').innerHTML = ''
+            document.getElementById('blockAttenuationFitSummary').innerHTML = ''
             document.getElementById('blockFinalMuPlot').innerHTML = ''
             document.getElementById('blockComparisonSummary').innerHTML = ''
             document.getElementById('blockHistogramImage').innerHTML = ''
@@ -1751,10 +1771,118 @@
             """Display block comparison results"""
             try:
                 console.log("=== display_block_comparison_results called ===")
+                def fmt(value, digits=2):
+                    try:
+                        return f"{float(value):.{digits}f}"
+                    except Exception:
+                        return str(value)
+
                 intensity_div = document.getElementById('blockFinalIntensityPlot')
                 if intensity_div and 'intensity_plot_image' in comparison_result:
                     intensity_div.innerHTML = f'<img src="data:image/png;base64,{comparison_result["intensity_plot_image"]}" alt="Block Intensity Comparison" style="max-width: 100%; border-radius: 10px;" />'
                     console.log("Block final intensity plot set")
+
+                linear_div = document.getElementById('blockLinearRegressionPlot')
+                if linear_div and 'linear_regression_plot_image' in comparison_result:
+                    linear_div.innerHTML = f'<img src="data:image/png;base64,{comparison_result["linear_regression_plot_image"]}" alt="Block Linear Regression Plot" style="max-width: 100%; border-radius: 10px;" />'
+                    console.log("Block linear regression plot set")
+
+                matrix_rows = comparison_result.get('attenuation_matrix_rows', [])
+                matrix_div = document.getElementById('blockAttenuationMatrix')
+                matrix_explanation_div = document.getElementById('blockAttenuationMatrixExplanation')
+                fit_summary_div = document.getElementById('blockAttenuationFitSummary')
+
+                if matrix_explanation_div:
+                    matrix_explanation_div.innerHTML = '''
+                        <strong>How the attenuation value is built:</strong>
+                        <ul style="margin: 10px 0 0 20px; line-height: 1.7;">
+                            <li><strong>I0</strong> is a single constant from the bottom step of Block 1 and Block 3.</li>
+                            <li><strong>I</strong> is the measured coal intensity from Block 2 or Block 4.</li>
+                            <li><strong>Acrylic thickness</strong> increases from 4 to 13 while <strong>coal thickness</strong> decreases from 10 to 1.</li>
+                            <li><strong>y = -ln(I0 / I)</strong> is the attenuation signal used for the matrix fit.</li>
+                            <li><strong>y_fit</strong> is the value predicted by the acrylic + coal matrix model.</li>
+                            <li><strong>Residual</strong> shows the mismatch between measured and fitted attenuation.</li>
+                            <li><strong>μ acrylic</strong> and <strong>μ coal</strong> come from the matrix least-squares solution.</li>
+                        </ul>
+                    '''
+
+                if matrix_div and matrix_rows:
+                    matrix_html = '''
+                    <div style="background: white; padding: 18px; border-radius: 10px; border: 1px solid #d8e3f0;">
+                        <table class="stats-table" style="min-width: 1100px;">
+                            <thead>
+                                <tr>
+                                    <th>Sample</th>
+                                    <th>Step</th>
+                                    <th>Acrylic (mm)</th>
+                                    <th>Coal (mm)</th>
+                                    <th>I0</th>
+                                    <th>I</th>
+                                    <th>I0 / I</th>
+                                    <th>y = -ln(I0 / I)</th>
+                                    <th>y Fit</th>
+                                    <th>Residual</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    '''
+                    for row in matrix_rows:
+                        matrix_html += f'''
+                                <tr>
+                                    <td>{row.get('sample', '')}</td>
+                                    <td>{row.get('step', '')}</td>
+                                    <td>{fmt(row.get('acrylic_mm', ''), 1)}</td>
+                                    <td>{fmt(row.get('coal_mm', ''), 1)}</td>
+                                    <td>{fmt(row.get('i0', ''), 1)}</td>
+                                    <td>{fmt(row.get('intensity', ''), 1)}</td>
+                                    <td>{fmt(row.get('ratio', ''), 3)}</td>
+                                    <td>{fmt(row.get('y', ''), 5)}</td>
+                                    <td>{fmt(row.get('y_fit', ''), 5)}</td>
+                                    <td>{fmt(row.get('residual', ''), 5)}</td>
+                                </tr>
+                        '''
+                    matrix_html += '''
+                            </tbody>
+                        </table>
+                    </div>
+                    '''
+                    matrix_div.innerHTML = matrix_html
+
+                fit_rows = comparison_result.get('attenuation_fit_rows', [])
+                if fit_summary_div and fit_rows:
+                    fit_html = '''
+                    <div style="background: white; padding: 18px; border-radius: 10px; border: 1px solid #d8e3f0; margin-top: 16px;">
+                        <h4 style="color: #333; margin-bottom: 12px;">Linear Fit Summary</h4>
+                        <table class="stats-table">
+                            <thead>
+                                <tr>
+                                    <th>Sample</th>
+                                    <th>μ Acrylic</th>
+                                    <th>Slope</th>
+                                    <th>Intercept</th>
+                                    <th>μ Coal</th>
+                                    <th>R²</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    '''
+                    for row in fit_rows:
+                        fit_html += f'''
+                                <tr>
+                                    <td><strong>{row.get('sample', '')}</strong></td>
+                                    <td>{fmt(row.get('mu_acrylic', ''), 5)}</td>
+                                    <td>{fmt(row.get('slope', ''), 5)}</td>
+                                    <td>{fmt(row.get('intercept', ''), 5)}</td>
+                                    <td>{fmt(row.get('mu_coal', ''), 5)}</td>
+                                    <td>{fmt(row.get('r2', ''), 4)}</td>
+                                </tr>
+                        '''
+                    fit_html += '''
+                            </tbody>
+                        </table>
+                    </div>
+                    '''
+                    fit_summary_div.innerHTML = fit_html
 
                 mu_div = document.getElementById('blockFinalMuPlot')
                 if mu_div and 'mu_plot_image' in comparison_result:
@@ -2499,6 +2627,22 @@
                 yPos += result.height + 8;
             }
 
+            const blockLinearRegressionImg = getImageDataFromElement('blockLinearRegressionPlot');
+            if (blockLinearRegressionImg) {
+                const result = await addImageToPdf(pdf, blockLinearRegressionImg, margin, yPos, contentWidth, 80);
+                yPos += result.height + 8;
+            }
+
+            const attenuationMatrixTable = getTableDataFromElement('blockAttenuationMatrix');
+            if (attenuationMatrixTable) {
+                yPos = addTableToPdf(pdf, attenuationMatrixTable, margin, yPos, pageHeight, contentWidth, 'Step-by-Step Attenuation Matrix');
+            }
+
+            const attenuationFitTable = getTableDataFromElement('blockAttenuationFitSummary');
+            if (attenuationFitTable) {
+                yPos = addTableToPdf(pdf, attenuationFitTable, margin, yPos, pageHeight, contentWidth, 'Linear Fit Summary');
+            }
+
             const blockMuImg = getImageDataFromElement('blockFinalMuPlot');
             if (blockMuImg) {
                 const result = await addImageToPdf(pdf, blockMuImg, margin, yPos, contentWidth, 80);
@@ -2577,6 +2721,7 @@
                 { id: 'subdivisionHistogram3', name: 'block3_subdivision_histogram.png' },
                 { id: 'subdivisionHistogram4', name: 'block4_subdivision_histogram.png' },
                 { id: 'blockFinalIntensityPlot', name: 'block_intensity_comparison.png' },
+                { id: 'blockLinearRegressionPlot', name: 'block_linear_regression.png' },
                 { id: 'blockFinalMuPlot', name: 'block_mu_comparison.png' }
             ];
             

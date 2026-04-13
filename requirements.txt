@@ -4,3 +4,4 @@ Pillow
 matplotlib
 fpdf2
 pytest
+scipy

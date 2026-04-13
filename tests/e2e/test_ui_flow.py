@@ -15,7 +15,7 @@ from playwright.sync_api import sync_playwright
 pytestmark = [pytest.mark.e2e]
 
 
-REPO_ROOT = Path("/home/runner/work/imageAnalysMiuBatubara/imageAnalysMiuBatubara")
+REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_URL_PATH = "/public/image-analysis-miu-batubara/index.html"
 
 

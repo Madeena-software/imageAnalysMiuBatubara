@@ -2,21 +2,40 @@ from __future__ import annotations
 
 import math
 
+import cv2
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
 import block_detection
+import circle_detection
 
 
 @pytest.mark.unit
-def test_circle_ratio_method_mu_formula():
+def test_circle_ratio_method_mu_formula(monkeypatch):
     i_air = 45000.0
     i_coal = 18500.0
     x_mm = 6.0
 
+    img = np.zeros((220, 220), dtype=np.uint16)
+    grid = []
+    for row in range(4):
+        for col in range(4):
+            center = (30 + (col * 50), 30 + (row * 50))
+            radius = 12
+            if row == col or (row + col) == 3:
+                val = i_air
+            elif row < col:
+                val = i_coal
+            else:
+                val = i_coal
+            cv2.circle(img, center, radius, int(val), -1)
+            grid.append({"grid_pos": [row, col], "center": center, "radius": radius})
+
+    monkeypatch.setattr(circle_detection, "_load_and_validate_image", lambda _b: img)
+    out = circle_detection.compare_diagonals(b"dummy", {"grid": grid})
     expected_mu = -math.log(i_coal / i_air) / x_mm
-    computed_mu = -math.log(i_coal / i_air) / x_mm
+    computed_mu = out["upper_stats"][0]["mu_coal"]
 
     assert_allclose(computed_mu, expected_mu, rtol=0, atol=1e-12)
 

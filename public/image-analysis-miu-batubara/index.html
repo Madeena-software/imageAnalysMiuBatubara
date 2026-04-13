@@ -337,6 +337,50 @@
             font-size: 1.2rem;
         }
 
+        /* Collapsible result/stat sections */
+        details.collapsible-panel {
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            background: #fff;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        details.collapsible-panel > summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 15px 18px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            user-select: none;
+        }
+
+        details.collapsible-panel > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.collapsible-panel > summary::before {
+            content: "▶";
+            display: inline-block;
+            margin-right: 10px;
+            transition: transform 0.2s ease;
+        }
+
+        details.collapsible-panel[open] > summary::before {
+            transform: rotate(90deg);
+        }
+
+        details.collapsible-panel.result-panel > summary {
+            background: #667eea;
+            color: #fff;
+        }
+
+        details.collapsible-panel.stats-panel > summary {
+            background: #f3f5ff;
+            color: #333;
+            border-left: 4px solid #667eea;
+        }
+
         .stats-section {
             background: #f8f9fa;
             border-radius: 15px;
@@ -809,7 +853,7 @@
         packages = ["numpy", "pillow", "opencv-python", "matplotlib"]
         
         [[fetch]]
-        files = ["./processor.py"]
+        files = ["./processor.py", "./circle_detection.py", "./block_detection.py"]
     </py-config>
 
     <!-- PyScript Main Script -->
@@ -1513,7 +1557,43 @@
     </script>
 
     <!-- JavaScript for mode switching and PDF export -->
-    <script>
+        <script>
+        function makeResultsCollapsible() {
+            const selectors = [
+                '#resultsSection .result-image',
+                '#resultsSection .stats-section',
+                '#blockResultsSection .result-image',
+                '#blockResultsSection .stats-section'
+            ];
+
+            document.querySelectorAll(selectors.join(',')).forEach((section, idx) => {
+                if (section.closest('details.collapsible-panel')) return;
+
+                const heading = section.querySelector('h3');
+                const title = heading
+                    ? heading.textContent.trim()
+                    : `Section ${idx + 1}`;
+
+                const details = document.createElement('details');
+                details.className = 'collapsible-panel';
+                details.classList.add(section.classList.contains('result-image') ? 'result-panel' : 'stats-panel');
+                details.open = true;
+
+                const summary = document.createElement('summary');
+                summary.textContent = title;
+                details.appendChild(summary);
+
+                section.parentNode.insertBefore(details, section);
+                details.appendChild(section);
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', makeResultsCollapsible);
+        } else {
+            makeResultsCollapsible();
+        }
+
         function switchMode(mode) {
             // Update button states
             document.getElementById('circleModeBtn').classList.toggle('active', mode === 'circle');

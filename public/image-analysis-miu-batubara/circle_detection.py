@@ -1,0 +1,563 @@
+"""Circle detection and Beer-Lambert analysis utilities for PyScript."""
+
+import base64
+import io
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+
+DEBUG = True
+
+
+def _load_image(file_bytes):
+    """Load TIFF bytes into a NumPy array, compatible with PyScript runtime."""
+    nparr = np.frombuffer(file_bytes, np.uint8)
+    img_16bit = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+    if img_16bit is None:
+        pil_img = Image.open(io.BytesIO(file_bytes))
+        img_16bit = np.array(pil_img)
+    return img_16bit
+
+
+def _numpy_to_base64(img_array):
+    """Convert a NumPy image array into base64 PNG for browser display."""
+    if len(img_array.shape) == 2:
+        pil_img = Image.fromarray(img_array, mode="L")
+    else:
+        pil_img = Image.fromarray(img_array, mode="RGB")
+
+    buffer = io.BytesIO()
+    pil_img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def process_tiff_image(file_bytes, params):
+    """Detect candidate circles from TIFF image bytes."""
+    try:
+        img_16bit = _load_image(file_bytes)
+        if img_16bit is None:
+            if DEBUG:
+                print("Error: Could not load image")
+            return None
+
+        threshold_value = params.get("threshold_value", 24000)
+        min_diameter = params.get("min_diameter", 50)
+        max_diameter = params.get("max_diameter", 357)
+        min_area = np.pi * (min_diameter / 2) ** 2
+        max_area = np.pi * (max_diameter / 2) ** 2
+        min_circularity = params.get("min_circularity", 0.6)
+        min_solidity = params.get("min_solidity", 0.7)
+        min_aspect_ratio = params.get("min_aspect_ratio", 0.7)
+        max_aspect_ratio = params.get("max_aspect_ratio", 1.3)
+        expected_count = params.get("expected_count", 4)
+        grid_cols = params.get("grid_cols", 4)
+
+        binary_mask = np.zeros_like(img_16bit, dtype=np.uint8)
+        binary_mask[img_16bit < threshold_value] = 255
+        kernel = np.ones((5, 5), np.uint8)
+        binary_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel, iterations=2)
+
+        contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        valid_circles = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < min_area or area > max_area:
+                continue
+
+            (x, y), radius = cv2.minEnclosingCircle(cnt)
+            center = (int(x), int(y))
+            radius = int(radius)
+
+            perimeter = cv2.arcLength(cnt, True)
+            if perimeter == 0:
+                continue
+
+            circularity = 4 * np.pi * (area / (perimeter * perimeter))
+            if circularity < min_circularity:
+                continue
+
+            hull = cv2.convexHull(cnt)
+            hull_area = cv2.contourArea(hull)
+            if hull_area == 0:
+                continue
+            solidity = area / hull_area
+            if solidity < min_solidity:
+                continue
+
+            rect = cv2.minAreaRect(cnt)
+            width, height = rect[1]
+            if width == 0 or height == 0:
+                continue
+            aspect_ratio = max(width, height) / min(width, height)
+            if aspect_ratio < min_aspect_ratio or aspect_ratio > max_aspect_ratio:
+                continue
+
+            valid_circles.append(
+                {
+                    "center": center,
+                    "radius": radius,
+                    "contour": cnt,
+                    "area": area,
+                    "circularity": circularity,
+                    "solidity": solidity,
+                    "aspect_ratio": aspect_ratio,
+                }
+            )
+
+        if len(valid_circles) > expected_count:
+            filtered = []
+            for circle in valid_circles:
+                is_duplicate = False
+                for j, other in enumerate(filtered):
+                    dist = np.sqrt(
+                        (circle["center"][0] - other["center"][0]) ** 2
+                        + (circle["center"][1] - other["center"][1]) ** 2
+                    )
+                    avg_radius = (circle["radius"] + other["radius"]) / 2
+                    if dist < avg_radius * 0.8:
+                        is_duplicate = True
+                        if circle["circularity"] > other["circularity"]:
+                            filtered[j] = circle
+                        break
+                if not is_duplicate:
+                    filtered.append(circle)
+            valid_circles = filtered
+
+        if len(valid_circles) >= expected_count:
+            valid_circles.sort(key=lambda c: c["center"][1])
+            num_rows = expected_count // grid_cols
+            sorted_final = []
+            for row_idx in range(num_rows):
+                start_idx = row_idx * grid_cols
+                end_idx = start_idx + grid_cols
+                if end_idx <= len(valid_circles):
+                    row = valid_circles[start_idx:end_idx]
+                    row.sort(key=lambda c: c["center"][0])
+                    sorted_final.extend(row)
+            if len(sorted_final) == expected_count:
+                valid_circles = sorted_final
+            else:
+                valid_circles.sort(key=lambda c: (c["center"][1] // 200, c["center"][0]))
+        else:
+            valid_circles.sort(key=lambda c: (c["center"][1] // 200, c["center"][0]))
+
+        img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
+        img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
+        debug_mask_rgb = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2RGB)
+
+        results = []
+        for i, item in enumerate(valid_circles):
+            center = item["center"]
+            radius = item["radius"]
+
+            mask_sampling = np.zeros_like(img_16bit, dtype=np.uint8)
+            cv2.circle(mask_sampling, center, int(radius * 0.7), 255, -1)
+            mean_val = cv2.mean(img_16bit, mask=mask_sampling)[0]
+
+            cv2.circle(img_rgb, center, radius, (0, 255, 0), 4)
+            cv2.putText(
+                img_rgb,
+                str(i + 1),
+                (center[0] - 20, center[1] + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.5,
+                (0, 100, 255),
+                4,
+            )
+
+            cv2.circle(debug_mask_rgb, center, radius, (0, 0, 255), 4)
+            cv2.putText(
+                debug_mask_rgb,
+                str(i + 1),
+                (center[0] - 20, center[1] + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.5,
+                (0, 100, 255),
+                4,
+            )
+
+            results.append(
+                {
+                    "id": i + 1,
+                    "center": center,
+                    "radius": radius,
+                    "mean_value": mean_val,
+                    "circularity": item["circularity"],
+                    "solidity": item["solidity"],
+                    "aspect_ratio": item["aspect_ratio"],
+                }
+            )
+
+        return {
+            "circles": results,
+            "detection_image": _numpy_to_base64(img_rgb),
+            "mask_image": _numpy_to_base64(debug_mask_rgb),
+            "count": len(results),
+        }
+
+    except Exception as e:
+        if DEBUG:
+            print(f"Error in process_tiff_image: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+        return None
+
+
+def detect_grid_from_diagonal(file_bytes, initial_results, grid_size=None):
+    """Extrapolate full grid positions from detected diagonal circles."""
+    try:
+        img_16bit = _load_image(file_bytes)
+        if img_16bit is None:
+            return None
+
+        circles = initial_results["circles"]
+        if grid_size is None:
+            grid_size = len(circles)
+
+        positions = [(c["center"][0], c["center"][1]) for c in circles]
+        x_coords = [pos[0] for pos in positions]
+        y_coords = [pos[1] for pos in positions]
+
+        x_spacings = [x_coords[i + 1] - x_coords[i] for i in range(len(x_coords) - 1)]
+        y_spacings = [y_coords[i + 1] - y_coords[i] for i in range(len(y_coords) - 1)]
+        mean_x_spacing = np.mean(x_spacings)
+        mean_y_spacing = np.mean(y_spacings)
+
+        ref_x, ref_y = positions[0]
+        x_positions = [int(ref_x + col * mean_x_spacing) for col in range(grid_size)]
+        y_positions = [int(ref_y + row * mean_y_spacing) for row in range(grid_size)]
+
+        grid_results = []
+        for row in range(grid_size):
+            for col in range(grid_size):
+                grid_results.append(
+                    {
+                        "id": row * grid_size + col + 1,
+                        "grid_pos": (row, col),
+                        "center": (x_positions[col], y_positions[row]),
+                        "radius": 103,
+                    }
+                )
+
+        img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
+        img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
+
+        for item in grid_results:
+            center = item["center"]
+            cv2.circle(img_rgb, center, item["radius"], (0, 255, 255), 3)
+            cv2.circle(img_rgb, center, 5, (255, 0, 0), -1)
+            cv2.putText(
+                img_rgb,
+                str(item["id"]),
+                (center[0] - 20, center[1] + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.2,
+                (0, 255, 0),
+                3,
+            )
+
+        return {
+            "grid": grid_results,
+            "grid_image": _numpy_to_base64(img_rgb),
+            "x_spacing": mean_x_spacing,
+            "y_spacing": mean_y_spacing,
+        }
+
+    except Exception as e:
+        if DEBUG:
+            print(f"Error in detect_grid_from_diagonal: {str(e)}")
+        return None
+
+
+def analyze_grid_histograms(file_bytes, grid_results):
+    """Keep existing histogram output for UI compatibility."""
+    try:
+        img_16bit = _load_image(file_bytes)
+        if img_16bit is None:
+            return None
+
+        grid_data = grid_results["grid"]
+        histogram_stats = []
+        max_row = max(item["grid_pos"][0] for item in grid_data)
+        max_col = max(item["grid_pos"][1] for item in grid_data)
+        grid_size = max(max_row, max_col) + 1
+
+        grid_lookup = {(item["grid_pos"][0], item["grid_pos"][1]): item for item in grid_data}
+        measured_pixels = {}
+        global_min = None
+        global_max = None
+
+        # Collect all pixel distributions first so every subplot can use the same
+        # x-axis range for fair visual comparison across positions.
+        for pos, item in grid_lookup.items():
+            mask = np.zeros_like(img_16bit, dtype=np.uint8)
+            cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
+            pixel_values = img_16bit[mask == 255]
+            if len(pixel_values) == 0:
+                continue
+            measured_pixels[pos] = pixel_values
+            local_min = float(np.min(pixel_values))
+            local_max = float(np.max(pixel_values))
+            global_min = local_min if global_min is None else min(global_min, local_min)
+            global_max = local_max if global_max is None else max(global_max, local_max)
+
+        fig_size = max(12, grid_size * 4)
+        fig, axes = plt.subplots(grid_size, grid_size, figsize=(fig_size, fig_size))
+        fig.suptitle(
+            f"Histogram Distribution - {grid_size}x{grid_size} Grid (Arranged by Image Position)",
+            fontsize=16,
+            fontweight="bold",
+        )
+
+        if grid_size == 1:
+            axes = np.array([[axes]])
+        elif grid_size > 1 and len(axes.shape) == 1:
+            axes = axes.reshape(grid_size, 1)
+
+        for row in range(grid_size):
+            for col in range(grid_size):
+                ax = axes[row, col]
+                grid_pos_id = row * grid_size + col + 1
+                if (row, col) not in measured_pixels:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"Position [{row},{col}]\nNo Data",
+                        transform=ax.transAxes,
+                        ha="center",
+                        va="center",
+                        fontsize=12,
+                        color="gray",
+                    )
+                    ax.set_title(f"Pos {grid_pos_id} [{row},{col}]", fontsize=10, fontweight="bold", color="gray")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    continue
+
+                item = grid_lookup[(row, col)]
+                pixel_values = measured_pixels[(row, col)]
+
+                mean_val = float(np.mean(pixel_values))
+                median_val = float(np.median(pixel_values))
+                std_val = float(np.std(pixel_values))
+                min_val = float(np.min(pixel_values))
+                max_val = float(np.max(pixel_values))
+
+                histogram_stats.append(
+                    {
+                        "grid_pos": (row, col),
+                        "position_id": grid_pos_id,
+                        "center": item["center"],
+                        "mean": mean_val,
+                        "median": median_val,
+                        "std": std_val,
+                        "min": min_val,
+                        "max": max_val,
+                        "pixel_count": len(pixel_values),
+                    }
+                )
+
+                ax.hist(pixel_values, bins=50, color="steelblue", alpha=0.7, edgecolor="black")
+                ax.axvline(mean_val, color="red", linestyle="--", linewidth=2, label=f"Mean: {mean_val:.1f}")
+                ax.axvline(
+                    median_val,
+                    color="green",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Median: {median_val:.1f}",
+                )
+                ax.set_title(f"Pos {grid_pos_id} [{row},{col}]", fontsize=10, fontweight="bold")
+                ax.set_xlabel("Pixel Value (16-bit)", fontsize=8)
+                ax.set_ylabel("Frequency", fontsize=8)
+                if global_min is not None and global_max is not None:
+                    if global_max == global_min:
+                        ax.set_xlim([global_min - 0.5, global_max + 0.5])
+                    else:
+                        pad = (global_max - global_min) * 0.02
+                        ax.set_xlim([global_min - pad, global_max + pad])
+                ax.legend(fontsize=7, loc="upper right")
+                ax.grid(True, alpha=0.3)
+
+                stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.1f}"
+                ax.text(
+                    0.02,
+                    0.98,
+                    stats_text,
+                    transform=ax.transAxes,
+                    fontsize=7,
+                    verticalalignment="top",
+                    bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+                )
+
+        plt.tight_layout()
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format="png", dpi=100, bbox_inches="tight")
+        buffer.seek(0)
+        histogram_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        plt.close()
+
+        return {"histogram_stats": histogram_stats, "histogram_image": histogram_image}
+
+    except Exception as e:
+        if DEBUG:
+            print(f"Error in analyze_grid_histograms: {str(e)}")
+        return None
+
+
+def compare_diagonals(file_bytes, grid_results):
+    """
+    Beer-Lambert analysis for 4x4 circle grid.
+
+    Physics model used (ratio method):
+      μ_coal = -ln(I_coal / I_air) / x_coal
+
+    Where:
+    - I_air is taken from the average of the four main-diagonal air circles
+    - x_coal = 6 mm (coal thickness only)
+    - Acrylic attenuation cancels out because both paths include identical acrylic layers.
+    """
+    try:
+        img_16bit = _load_image(file_bytes)
+        if img_16bit is None:
+            return None
+
+        grid_data = grid_results["grid"]
+
+        diagonal_items = []
+        upper_items = []
+        lower_items = []
+
+        for item in grid_data:
+            row, col = item["grid_pos"]
+            if row == col:
+                diagonal_items.append(item)
+            elif row < col:
+                upper_items.append(item)
+            else:
+                lower_items.append(item)
+
+        def _measure(items):
+            measured = []
+            for item in items:
+                mask = np.zeros_like(img_16bit, dtype=np.uint8)
+                cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
+                pixel_values = img_16bit[mask == 255]
+                measured.append(
+                    {
+                        "grid_pos": item["grid_pos"],
+                        "center": item["center"],
+                        "mean": float(np.mean(pixel_values)),
+                        "median": float(np.median(pixel_values)),
+                        "std": float(np.std(pixel_values)),
+                    }
+                )
+            return measured
+
+        diagonal_stats = _measure(diagonal_items)
+        upper_stats = _measure(upper_items)
+        lower_stats = _measure(lower_items)
+
+        if len(diagonal_stats) == 0:
+            return None
+
+        # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
+        # Unit is pixel intensity from the 16-bit image.
+        i0_air = float(np.mean([s["mean"] for s in diagonal_stats]))
+        # Coal thickness used in ratio method, in millimeters.
+        x_coal_mm = 6.0
+        eps = 1e-9
+        if i0_air <= eps:
+            raise ValueError("Invalid I0 reference: diagonal air intensity is too small.")
+
+        def _attach_mu(stats_list):
+            for s in stats_list:
+                ratio = np.clip(float(s["mean"]) / i0_air, eps, None)
+                # Beer-Lambert ratio method: μ = -ln(I_coal / I_air) / x_coal.
+                # Since x_coal_mm is in mm, resulting μ units are 1/mm.
+                s["mu_coal"] = float(-np.log(ratio) / x_coal_mm)
+            return stats_list
+
+        upper_stats = _attach_mu(upper_stats)
+        lower_stats = _attach_mu(lower_stats)
+
+        upper_intensity = [s["mean"] for s in upper_stats]
+        lower_intensity = [s["mean"] for s in lower_stats]
+        diagonal_intensity = [s["mean"] for s in diagonal_stats]
+        upper_mu = [s["mu_coal"] for s in upper_stats]
+        lower_mu = [s["mu_coal"] for s in lower_stats]
+
+        # Plot 1: Intensity vs position (upper vs lower vs diagonal)
+        fig1, ax1 = plt.subplots(figsize=(12, 6))
+        ax1.plot(np.arange(1, len(upper_intensity) + 1), upper_intensity, marker="o", linewidth=2, label="Upper (Coal)")
+        ax1.plot(np.arange(1, len(lower_intensity) + 1), lower_intensity, marker="s", linewidth=2, label="Lower (Coal)")
+        ax1.plot(np.arange(1, len(diagonal_intensity) + 1), diagonal_intensity, marker="^", linewidth=2, label="Diagonal (Air = I0)")
+        ax1.set_xlabel("Position Index", fontweight="bold")
+        ax1.set_ylabel("Mean Intensity (I)", fontweight="bold")
+        ax1.set_title("Intensity vs Position (Upper/Lower/Diagonal)", fontweight="bold")
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
+        plt.tight_layout()
+
+        buf1 = io.BytesIO()
+        plt.savefig(buf1, format="png", dpi=100, bbox_inches="tight")
+        buf1.seek(0)
+        intensity_plot_image = base64.b64encode(buf1.getvalue()).decode("utf-8")
+        plt.close(fig1)
+
+        # Plot 2: μ vs position (upper vs lower)
+        fig2, ax2 = plt.subplots(figsize=(12, 6))
+        ax2.plot(np.arange(1, len(upper_mu) + 1), upper_mu, marker="o", linewidth=2, label="Upper μ")
+        ax2.plot(np.arange(1, len(lower_mu) + 1), lower_mu, marker="s", linewidth=2, label="Lower μ")
+        ax2.set_xlabel("Position Index", fontweight="bold")
+        ax2.set_ylabel("μ (1/mm)", fontweight="bold")
+        ax2.set_title("Coal Linear Attenuation Coefficient (μ) vs Position", fontweight="bold")
+        ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        plt.tight_layout()
+
+        buf2 = io.BytesIO()
+        plt.savefig(buf2, format="png", dpi=100, bbox_inches="tight")
+        buf2.seek(0)
+        mu_plot_image = base64.b64encode(buf2.getvalue()).decode("utf-8")
+        plt.close(fig2)
+
+        summary = {
+            "i0_air": i0_air,
+            "x_coal_mm": x_coal_mm,
+            "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
+            "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
+            "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,
+            "lower_mu_std": float(np.std(lower_mu)) if lower_mu else None,
+        }
+
+        return {
+            "diagonal_stats": diagonal_stats,
+            "upper_stats": upper_stats,
+            "lower_stats": lower_stats,
+            "summary": summary,
+            "intensity_plot_image": intensity_plot_image,
+            "mu_plot_image": mu_plot_image,
+            # Backward compatibility with existing UI key.
+            "comparison_image": mu_plot_image,
+        }
+
+    except Exception as e:
+        if DEBUG:
+            print(f"Error in compare_diagonals: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+        return None
+
+
+__all__ = [
+    "process_tiff_image",
+    "detect_grid_from_diagonal",
+    "analyze_grid_histograms",
+    "compare_diagonals",
+]

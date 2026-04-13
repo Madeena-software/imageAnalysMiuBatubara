@@ -23,6 +23,11 @@ AIR_BLOCK_VALIDATION_ERROR = (
 )
 
 
+def _correct_intensity(value, offset=0.0, scale=1.0, eps=1e-9):
+    corrected = (float(value) + float(offset)) * float(scale)
+    return float(max(corrected, eps))
+
+
 def _load_image(file_bytes):
     nparr = np.frombuffer(file_bytes, np.uint8)
     img_16bit = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
@@ -652,7 +657,41 @@ def analyze_subdivision_histograms(file_bytes, subdivisions, block_number=1):
         return None
 
 
-def compare_blocks_1_vs_3(file_bytes, subdivisions):
+def visualize_block_invalid_roi(file_bytes, subdivisions):
+    """Build guidance overlay highlighting Air reference ROIs (Block 1 & 3)."""
+    try:
+        img_16bit = _load_and_validate_image(file_bytes)
+        subdivision_data = subdivisions.get("subdivisions", [])
+        img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
+        img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
+
+        for sub in subdivision_data:
+            parent = int(sub.get("parent_block", 0))
+            box = np.array(sub["box"], dtype=np.int32)
+            if parent in (1, 3):
+                cv2.drawContours(img_rgb, [box], 0, (255, 0, 0), 2)
+                shrunk = _shrink_box(box, ROI_SHRINK_RATIO)
+                cv2.drawContours(img_rgb, [np.array(shrunk, dtype=np.int32)], 0, (0, 255, 255), 2)
+                center = tuple(map(int, sub["center"]))
+                cv2.putText(
+                    img_rgb,
+                    f"AIR {parent}.{sub['subdivision_id']}",
+                    (center[0] - 45, center[1] - 8),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.45,
+                    (255, 0, 0),
+                    1,
+                )
+
+        return {
+            "invalid_roi_image": _numpy_to_base64(img_rgb),
+            "hint": "Blue=air reference ROI, yellow=shrunken sampling ROI. Tune block threshold so ROIs avoid bright container walls.",
+        }
+    except Exception as e:
+        raise ValueError(f"Block invalid ROI visualization failed: {str(e)}") from e
+
+
+def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
     """
     Beer-Lambert analysis for step-wedge blocks.
 
@@ -670,6 +709,12 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
     """
     try:
         img_16bit = _load_and_validate_image(file_bytes)
+        params = params or {}
+        intensity_offset = float(params.get("intensity_offset", 0.0))
+        intensity_scale = float(params.get("intensity_scale", 1.0))
+        air_gradient_min_score = float(params.get("air_gradient_min_score", AIR_GRADIENT_MIN_SCORE))
+        air_step_max_rel_diff = float(params.get("air_step_max_rel_diff", AIR_STEP_MAX_REL_DIFF))
+        air_step_mean_rel_diff = float(params.get("air_step_mean_rel_diff", AIR_STEP_MEAN_REL_DIFF))
         subdivision_data = subdivisions["subdivisions"]
         expected_steps = 10
         eps = 1e-9
@@ -734,16 +779,22 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         block3_stats = _orient_stats(block3_raw)
         block4_stats = _orient_stats(block4_raw)
 
-        air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
-        air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
+        air1 = np.array(
+            [_correct_intensity(s["mean"], intensity_offset, intensity_scale, eps) for s in block1_stats],
+            dtype=float,
+        )
+        air3 = np.array(
+            [_correct_intensity(s["mean"], intensity_offset, intensity_scale, eps) for s in block3_stats],
+            dtype=float,
+        )
 
         air1_decrease_score = _monotonic_decrease_score(air1)
         air3_decrease_score = _monotonic_decrease_score(air3)
-        if air1_decrease_score < AIR_GRADIENT_MIN_SCORE or air3_decrease_score < AIR_GRADIENT_MIN_SCORE:
+        if air1_decrease_score < air_gradient_min_score or air3_decrease_score < air_gradient_min_score:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)
-        if float(np.max(rel_diff)) > AIR_STEP_MAX_REL_DIFF or float(np.mean(rel_diff)) > AIR_STEP_MEAN_REL_DIFF:
+        if float(np.max(rel_diff)) > air_step_max_rel_diff or float(np.mean(rel_diff)) > air_step_mean_rel_diff:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         def _has_spike(values):
@@ -765,7 +816,10 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
         def _compute_mu_series(coal_stats):
             x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
-            i_t = np.array([max(float(s["mean"]), eps) for s in coal_stats], dtype=float)
+            i_t = np.array(
+                [_correct_intensity(float(s["mean"]), intensity_offset, intensity_scale, eps) for s in coal_stats],
+                dtype=float,
+            )
             i0 = np.clip(air_ref, eps, None)
             ratio = np.clip(i_t / i0, eps, None)
             y = -np.log(ratio)
@@ -833,6 +887,11 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         summary = {
             "orientation": orientation,
             "i0_air_x10": i0_air_x10,
+            "intensity_offset": intensity_offset,
+            "intensity_scale": intensity_scale,
+            "air_gradient_min_score": air_gradient_min_score,
+            "air_step_max_rel_diff": air_step_max_rel_diff,
+            "air_step_mean_rel_diff": air_step_mean_rel_diff,
             "mu_block2": block2_model["mu_coal"],
             "mu_block4": block4_model["mu_coal"],
             "mu_acrylic_block2": block2_model["mu_acrylic"],
@@ -904,5 +963,6 @@ __all__ = [
     "analyze_block_histograms",
     "subdivide_blocks",
     "analyze_subdivision_histograms",
+    "visualize_block_invalid_roi",
     "compare_blocks_1_vs_3",
 ]

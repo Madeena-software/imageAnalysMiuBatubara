@@ -19,6 +19,11 @@ AIR_DIAGONAL_VALIDATION_ERROR = (
 )
 
 
+def _correct_intensity(value, offset=0.0, scale=1.0, eps=1e-9):
+    corrected = (float(value) + float(offset)) * float(scale)
+    return float(max(corrected, eps))
+
+
 def _load_image(file_bytes):
     """Load TIFF bytes into a NumPy array, compatible with PyScript runtime."""
     nparr = np.frombuffer(file_bytes, np.uint8)
@@ -450,7 +455,42 @@ def analyze_grid_histograms(file_bytes, grid_results):
         return None
 
 
-def compare_diagonals(file_bytes, grid_results):
+def visualize_circle_invalid_roi(file_bytes, grid_results):
+    """Build guidance overlay highlighting anti-diagonal air reference ROIs."""
+    try:
+        img_16bit = _load_and_validate_image(file_bytes)
+        grid_data = grid_results["grid"]
+        img_display = cv2.normalize(img_16bit, None, 0, 255, cv2.NORM_MINMAX).astype("uint8")
+        img_rgb = cv2.cvtColor(img_display, cv2.COLOR_GRAY2RGB)
+
+        for item in grid_data:
+            row, col = item["grid_pos"]
+            center = tuple(item["center"])
+            radius = int(item["radius"])
+            is_anti_air = (row + col) == 3
+            color = (255, 0, 0) if is_anti_air else (0, 255, 0)
+            label_prefix = "AIR" if is_anti_air else "ROI"
+            cv2.circle(img_rgb, center, radius, color, 3)
+            cv2.circle(img_rgb, center, int(radius * 0.7), color, 2)
+            cv2.putText(
+                img_rgb,
+                f"{label_prefix}[{row},{col}]",
+                (center[0] - 85, center[1] - radius - 12),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2,
+            )
+
+        return {
+            "invalid_roi_image": _numpy_to_base64(img_rgb),
+            "hint": "Anti-diagonal AIR ROIs are highlighted in blue. Tune threshold and diameter so each ROI stays inside hole area.",
+        }
+    except Exception as e:
+        raise ValueError(f"Circle invalid ROI visualization failed: {str(e)}") from e
+
+
+def compare_diagonals(file_bytes, grid_results, params=None):
     """
     Beer-Lambert analysis for 4x4 circle grid.
 
@@ -464,6 +504,10 @@ def compare_diagonals(file_bytes, grid_results):
     """
     try:
         img_16bit = _load_and_validate_image(file_bytes)
+        params = params or {}
+        intensity_offset = float(params.get("intensity_offset", 0.0))
+        intensity_scale = float(params.get("intensity_scale", 1.0))
+        air_cv_threshold = float(params.get("air_cv_threshold", AIR_CV_THRESHOLD))
 
         grid_data = grid_results["grid"]
         circle_count = len(grid_data)
@@ -520,17 +564,22 @@ def compare_diagonals(file_bytes, grid_results):
                 "Circle validation failed: expected 4 anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
             )
-        anti_air_means = np.array([s["mean"] for s in anti_diagonal_stats], dtype=float)
+        anti_air_means = np.array(
+            [_correct_intensity(s["mean"], intensity_offset, intensity_scale) for s in anti_diagonal_stats],
+            dtype=float,
+        )
         anti_air_mean = float(np.mean(anti_air_means))
         if anti_air_mean <= 0:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
         anti_air_cv = float(np.std(anti_air_means) / anti_air_mean)
-        if anti_air_cv > AIR_CV_THRESHOLD:
+        if anti_air_cv > air_cv_threshold:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
         # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
         # Unit is pixel intensity from the 16-bit image.
-        i0_air = float(np.mean([s["mean"] for s in diagonal_stats]))
+        i0_air = float(
+            np.mean([_correct_intensity(s["mean"], intensity_offset, intensity_scale) for s in diagonal_stats])
+        )
         # Coal thickness used in ratio method, in millimeters.
         x_coal_mm = 6.0
         eps = 1e-9
@@ -539,7 +588,8 @@ def compare_diagonals(file_bytes, grid_results):
 
         def _attach_mu(stats_list):
             for s in stats_list:
-                ratio = np.clip(float(s["mean"]) / i0_air, eps, None)
+                corrected_mean = _correct_intensity(s["mean"], intensity_offset, intensity_scale, eps)
+                ratio = np.clip(corrected_mean / i0_air, eps, None)
                 # Beer-Lambert ratio method: μ = -ln(I_coal / I_air) / x_coal.
                 # Since x_coal_mm is in mm, resulting μ units are 1/mm.
                 s["mu_coal"] = float(-np.log(ratio) / x_coal_mm)
@@ -593,6 +643,9 @@ def compare_diagonals(file_bytes, grid_results):
             "i0_air": i0_air,
             "x_coal_mm": x_coal_mm,
             "anti_air_cv": anti_air_cv,
+            "air_cv_threshold": air_cv_threshold,
+            "intensity_offset": intensity_offset,
+            "intensity_scale": intensity_scale,
             "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
             "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
             "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,
@@ -618,5 +671,6 @@ __all__ = [
     "process_tiff_image",
     "detect_grid_from_diagonal",
     "analyze_grid_histograms",
+    "visualize_circle_invalid_roi",
     "compare_diagonals",
 ]

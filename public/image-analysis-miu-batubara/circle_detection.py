@@ -31,7 +31,7 @@ def _load_image(file_bytes):
 
 
 def _load_and_validate_image(file_bytes):
-    """Strict SOP validation: only 16-bit grayscale TIFF images are accepted."""
+    """Validate TIFF grayscale input and normalize any 16-bit NumPy dtype to uint16."""
     try:
         pil_img = Image.open(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -48,11 +48,11 @@ def _load_and_validate_image(file_bytes):
         raise ValueError(
             f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
         )
-    if img.dtype != np.uint16:
+    if img.dtype.kind != "u" or img.dtype.itemsize != 2:
         raise ValueError(
-            f"Image format validation failed: expected 16-bit TIFF (uint16), got dtype '{img.dtype}'."
+            f"Image format validation failed: expected 16-bit grayscale TIFF, got dtype '{img.dtype}'."
         )
-    return img
+    return img.astype(np.uint16, copy=False)
 
 
 def _numpy_to_base64(img_array):

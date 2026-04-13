@@ -4,9 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Image Analysis MIU Batubara</title>
-  <meta http-equiv="refresh" content="0; url=./public/image-analysis-miu-batubara/">
   <script>
-    window.location.replace('./public/image-analysis-miu-batubara/');
+    const currentPath = window.location.pathname;
+    const withoutIndex = currentPath.endsWith('index.html')
+      ? currentPath.slice(0, -'index.html'.length)
+      : currentPath;
+    const basePath = withoutIndex.endsWith('/') ? withoutIndex : `${withoutIndex}/`;
+    window.location.replace(`${basePath}public/image-analysis-miu-batubara/`);
   </script>
 </head>
 <body>

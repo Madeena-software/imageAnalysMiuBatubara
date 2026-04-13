@@ -6,7 +6,7 @@
   <title>Image Analysis MIU Batubara</title>
 </head>
 <body>
-  <main>
+  <main aria-live="polite">
     <h1>Redirecting to app...</h1>
     <p><a id="manual-open-link" href="./image-analysis-miu-batubara/">Open Image Analysis MIU Batubara manually</a></p>
   </main>
@@ -17,7 +17,9 @@
     if (manualLink) {
       manualLink.href = targetUrl;
     }
-    window.location.replace(targetUrl);
+    setTimeout(() => {
+      window.location.replace(targetUrl);
+    }, 1000);
   </script>
 </body>
 </html>

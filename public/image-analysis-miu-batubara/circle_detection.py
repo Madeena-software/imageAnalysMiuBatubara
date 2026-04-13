@@ -450,11 +450,14 @@ def compare_diagonals(file_bytes, grid_results):
         # Coal thickness used in ratio method, in millimeters.
         x_coal_mm = 2.0
         eps = 1e-9
+        if i0_air <= eps:
+            raise ValueError("Invalid I0 reference: diagonal air intensity is too small.")
 
         def _attach_mu(stats_list):
             for s in stats_list:
-                ratio = max(float(s["mean"]) / max(i0_air, eps), eps)
+                ratio = np.clip(float(s["mean"]) / i0_air, eps, None)
                 # Beer-Lambert ratio method: μ = -ln(I_coal / I_air) / x_coal.
+                # Since x_coal_mm is in mm, resulting μ units are 1/mm.
                 s["mu_coal"] = float(-np.log(ratio) / x_coal_mm)
             return stats_list
 

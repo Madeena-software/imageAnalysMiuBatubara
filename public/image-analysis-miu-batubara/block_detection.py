@@ -601,6 +601,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         i0_air = float(np.min(air_x10_values))
 
         eps = 1e-9
+        if i0_air <= eps:
+            raise ValueError("Invalid I0 reference: air intensity at x=10 is too small.")
 
         def _compute_mu_series(coal_stats):
             filtered = [s for s in coal_stats if s.get("x_coal_mm") is not None]
@@ -608,13 +610,14 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
             x = np.array([float(s["x_coal_mm"]) for s in filtered], dtype=float)
             i_t = np.array([max(float(s["mean"]), eps) for s in filtered], dtype=float)
-            ratio = np.clip(i_t / max(i0_air, eps), eps, None)
+            ratio = np.clip(i_t / i0_air, eps, None)
 
             # Beer-Lambert transform to linear form.
             y = -np.log(ratio)
 
             # Linear regression using numpy.polyfit(x, y, 1): slope = μ_coal.
             slope, intercept = np.polyfit(x, y, 1)
+            # intercept is the constant acrylic attenuation term (μ_acrylic * 4 mm).
 
             # Per-step apparent μ for visualization only.
             # The fitted μ_coal slope from polyfit is the physically estimated coefficient.
@@ -665,11 +668,14 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
         # Plot 2: μ vs thickness (Block 1 and Block 3)
         fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(block1_model["x"], block1_model["mu_point"], marker="o", linewidth=2, label=f"Block 1 μ(x), fit μ={block1_model['mu_coal']:.5f}")
-        ax2.plot(block3_model["x"], block3_model["mu_point"], marker="s", linewidth=2, label=f"Block 3 μ(x), fit μ={block3_model['mu_coal']:.5f}")
+        ax2.plot(block1_model["x"], block1_model["mu_point"], marker="o", linewidth=2, label="Block 1 μ(x) apparent")
+        ax2.plot(block3_model["x"], block3_model["mu_point"], marker="s", linewidth=2, label="Block 3 μ(x) apparent")
         ax2.set_xlabel("Thickness x (mm)", fontweight="bold")
         ax2.set_ylabel("μ (1/mm)", fontweight="bold")
-        ax2.set_title("Coal Linear Attenuation Coefficient (μ) vs Thickness", fontweight="bold")
+        ax2.set_title(
+            f"Coal μ vs Thickness (fit μ1={block1_model['mu_coal']:.5f}, μ3={block3_model['mu_coal']:.5f})",
+            fontweight="bold",
+        )
         ax2.set_xticks(list(range(10, 0, -1)))
         ax2.invert_xaxis()
         ax2.grid(True, alpha=0.3)

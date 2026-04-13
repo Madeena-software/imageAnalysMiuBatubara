@@ -13,7 +13,7 @@ DEBUG = True
 # CV > 5% indicates likely ROI contamination by acrylic wall/noise.
 AIR_CV_THRESHOLD = 0.05
 AIR_DIAGONAL_VALIDATION_ERROR = (
-    "Validation Failed: The 4 Air reference circles on the diagonal show inconsistent intensities. "
+    "Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
     "Please adjust the Minimum/Maximum Diameter or Threshold parameters to ensure the circles fit strictly "
     "inside the empty physical holes."
 )

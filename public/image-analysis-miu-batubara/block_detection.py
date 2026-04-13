@@ -17,7 +17,8 @@ AIR_STEP_MEAN_REL_DIFF = 0.10
 SPIKE_CURVATURE_SIGMA_MULTIPLIER = 4.0
 AIR_BLOCK_VALIDATION_ERROR = (
     "Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
-    "or are incorrectly oriented. The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
+    "or are incorrectly oriented. Expected arrangement: Block 1 leftmost and Block 3 rightmost. "
+    "The calculated ROI is invalid. Please adjust the Block Threshold or check image alignment."
 )
 
 
@@ -276,7 +277,7 @@ def process_blocks(file_bytes, params):
         box4 = box3 + np.array([dx_ref, dy_ref], dtype=np.int32)
         center4 = (int(block_3["center"][0] + dx_ref), int(block_3["center"][1] + dy_ref))
 
-        def _to_block(block_id, source, block_dict=None, center=None, box=None):
+        def _to_block(block_id, detection_type, block_dict=None, center=None, box=None):
             if block_dict is not None:
                 b_center = block_dict["center"]
                 b_box = block_dict["box"]
@@ -297,8 +298,8 @@ def process_blocks(file_bytes, params):
                 "height": float(height),
                 "mean_value": 0.0,
                 "rectangularity": float(rectangularity),
-                "classification": "Detected" if source == "detected" else "Calculated",
-                "type": source,
+                "classification": "Detected" if detection_type == "detected" else "Calculated",
+                "type": detection_type,
             }
 
         all_blocks = [
@@ -700,7 +701,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
                     f"found {len(stats)}."
                 )
 
-        def _decreasing_score(values):
+        def _monotonic_decrease_score(values):
+            """Return 0..2 score where higher means stronger top->bottom intensity decrease."""
             if len(values) < 2:
                 return -np.inf
             diffs = np.diff(values)
@@ -708,10 +710,10 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
 
         b1_normal = np.array([s["mean"] for s in block1_raw], dtype=float)
         b3_normal = np.array([s["mean"] for s in block3_raw], dtype=float)
-        score_normal = (_decreasing_score(b1_normal) + _decreasing_score(b3_normal)) / 2.0
+        score_normal = (_monotonic_decrease_score(b1_normal) + _monotonic_decrease_score(b3_normal)) / 2.0
         b1_reversed = b1_normal[::-1]
         b3_reversed = b3_normal[::-1]
-        score_reversed = (_decreasing_score(b1_reversed) + _decreasing_score(b3_reversed)) / 2.0
+        score_reversed = (_monotonic_decrease_score(b1_reversed) + _monotonic_decrease_score(b3_reversed)) / 2.0
 
         reverse_orientation = score_reversed > score_normal
         orientation = "reversed" if reverse_orientation else "normal"
@@ -734,7 +736,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        if _decreasing_score(air1) < AIR_GRADIENT_MIN_SCORE or _decreasing_score(air3) < AIR_GRADIENT_MIN_SCORE:
+        if _monotonic_decrease_score(air1) < AIR_GRADIENT_MIN_SCORE or _monotonic_decrease_score(air3) < AIR_GRADIENT_MIN_SCORE:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)

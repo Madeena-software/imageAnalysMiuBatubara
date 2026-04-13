@@ -23,7 +23,7 @@ AIR_BLOCK_VALIDATION_ERROR = (
 )
 
 
-def _correct_intensity(value, offset=0.0, scale=1.0, eps=1e-9):
+def _apply_intensity_correction(value, offset=0.0, scale=1.0, eps=1e-9):
     corrected = (float(value) + float(offset)) * float(scale)
     return float(max(corrected, eps))
 
@@ -780,11 +780,11 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         block4_stats = _orient_stats(block4_raw)
 
         air1 = np.array(
-            [_correct_intensity(s["mean"], intensity_offset, intensity_scale, eps) for s in block1_stats],
+            [_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale, eps) for s in block1_stats],
             dtype=float,
         )
         air3 = np.array(
-            [_correct_intensity(s["mean"], intensity_offset, intensity_scale, eps) for s in block3_stats],
+            [_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale, eps) for s in block3_stats],
             dtype=float,
         )
 
@@ -817,7 +817,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         def _compute_mu_series(coal_stats):
             x = np.array([float(s["x_coal_mm"]) for s in coal_stats], dtype=float)
             i_t = np.array(
-                [_correct_intensity(float(s["mean"]), intensity_offset, intensity_scale, eps) for s in coal_stats],
+                [_apply_intensity_correction(float(s["mean"]), intensity_offset, intensity_scale, eps) for s in coal_stats],
                 dtype=float,
             )
             i0 = np.clip(air_ref, eps, None)

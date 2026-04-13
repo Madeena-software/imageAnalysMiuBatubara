@@ -19,7 +19,7 @@ AIR_DIAGONAL_VALIDATION_ERROR = (
 )
 
 
-def _correct_intensity(value, offset=0.0, scale=1.0, eps=1e-9):
+def _apply_intensity_correction(value, offset=0.0, scale=1.0, eps=1e-9):
     corrected = (float(value) + float(offset)) * float(scale)
     return float(max(corrected, eps))
 
@@ -565,7 +565,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 f"found {len(anti_diagonal_stats)}."
             )
         anti_air_means = np.array(
-            [_correct_intensity(s["mean"], intensity_offset, intensity_scale) for s in anti_diagonal_stats],
+            [_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale) for s in anti_diagonal_stats],
             dtype=float,
         )
         anti_air_mean = float(np.mean(anti_air_means))
@@ -578,7 +578,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
         # Unit is pixel intensity from the 16-bit image.
         i0_air = float(
-            np.mean([_correct_intensity(s["mean"], intensity_offset, intensity_scale) for s in diagonal_stats])
+            np.mean([_apply_intensity_correction(s["mean"], intensity_offset, intensity_scale) for s in diagonal_stats])
         )
         # Coal thickness used in ratio method, in millimeters.
         x_coal_mm = 6.0
@@ -588,7 +588,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
 
         def _attach_mu(stats_list):
             for s in stats_list:
-                corrected_mean = _correct_intensity(s["mean"], intensity_offset, intensity_scale, eps)
+                corrected_mean = _apply_intensity_correction(s["mean"], intensity_offset, intensity_scale, eps)
                 ratio = np.clip(corrected_mean / i0_air, eps, None)
                 # Beer-Lambert ratio method: μ = -ln(I_coal / I_air) / x_coal.
                 # Since x_coal_mm is in mm, resulting μ units are 1/mm.

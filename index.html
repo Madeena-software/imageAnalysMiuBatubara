@@ -4,19 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Image Analysis MIU Batubara</title>
-  <script>
-    window.__appTargetPath = './public/image-analysis-miu-batubara/';
-    const targetUrl = new URL(window.__appTargetPath, window.location.href);
-    window.location.replace(targetUrl.href);
-  </script>
 </head>
 <body>
   <p>Redirecting to app... <a id="manual-open-link" href="./public/image-analysis-miu-batubara/">Open manually</a></p>
   <script>
+    const targetPath = './public/image-analysis-miu-batubara/';
+    const targetUrl = new URL(targetPath, window.location.href).href;
     const manualLink = document.getElementById('manual-open-link');
     if (manualLink) {
-      manualLink.href = new URL(window.__appTargetPath, window.location.href).href;
+      manualLink.href = targetUrl;
     }
+    window.location.replace(targetUrl);
   </script>
 </body>
 </html>

@@ -1238,6 +1238,7 @@
         async def process_circle_image(event):
             """Process the uploaded image for circle detection"""
             global uploaded_file_data, uploaded_filename
+            circle_analysis_warning = None
             
             if uploaded_file_data is None:
                 show_message("Please upload a file first!", True)
@@ -1338,7 +1339,24 @@
                                     display_circle_invalid_roi_guidance(invalid_roi)
                                 except Exception as viz_error:
                                     console.error(f"Circle invalid ROI visualization error: {str(viz_error)}")
-                            show_message(f"Circle analysis warning: {diag_msg}", True)
+
+                                # Fallback path: keep warning guidance but still show attenuation output
+                                # using a relaxed AIR-CV threshold so users can inspect comparative μ values.
+                                try:
+                                    relaxed_params = dict(params)
+                                    relaxed_params['air_cv_threshold'] = 1.0
+                                    relaxed_diagonal_result = compare_diagonals(file_bytes, grid_result, relaxed_params)
+                                    if relaxed_diagonal_result:
+                                        display_diagonal_results(relaxed_diagonal_result)
+                                        circle_analysis_warning = (
+                                            "AIR ROI consistency check failed in strict mode; "
+                                            "attenuation is shown using relaxed validation (AIR CV threshold = 1.0)."
+                                        )
+                                except Exception as relaxed_error:
+                                    console.error(f"Circle relaxed analysis fallback error: {str(relaxed_error)}")
+                                    circle_analysis_warning = f"Circle analysis warning: {diag_msg}"
+                            else:
+                                circle_analysis_warning = f"Circle analysis warning: {diag_msg}"
                 
                 document.getElementById('loadingSection').classList.remove('active')
                 document.getElementById('resultsSection').classList.add('active')
@@ -1348,7 +1366,10 @@
                 results_element = document.getElementById('resultsSection')
                 results_element.scrollIntoView({'behavior': 'smooth', 'block': 'start'})
                 
-                show_message(f"Circle detection complete! Detected {result['count']} circles.", False)
+                success_message = f"Circle detection complete! Detected {result['count']} circles."
+                if circle_analysis_warning:
+                    success_message += f" {circle_analysis_warning}"
+                show_message(success_message, False)
                 
             except Exception as e:
                 console.error(f"Error: {str(e)}")

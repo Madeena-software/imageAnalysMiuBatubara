@@ -807,22 +807,22 @@
             <div class="results" id="resultsSection">
                 <h2>📊 Results</h2>
 
-                <div class="result-image">
-                    <h3>Processed Image</h3>
-                    <div id="detectionImage"></div>
-                </div>
-
-                <details class="collapsible-panel stats-panel" id="circleParametersDetails">
-                    <summary>Detection Parameters</summary>
-                    <div class="stats-section" style="margin-top: 0;">
-                        <div id="circleParametersSnapshot"></div>
-                    </div>
-                </details>
-
                 <div class="attenuation-comparison" id="circleAttenuationComparison"></div>
 
                 <details class="collapsible-panel result-panel" id="circleMasterDetails">
                     <summary>View Detailed Plots, Histograms, and Raw Data</summary>
+
+                    <details class="collapsible-panel stats-panel" id="circleParametersDetails">
+                        <summary>Detection Parameters</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="circleParametersSnapshot"></div>
+                        </div>
+                    </details>
+
+                    <div class="result-image" style="margin-bottom: 16px;">
+                        <h3>Processed Image</h3>
+                        <div id="detectionImage"></div>
+                    </div>
 
                     <details class="collapsible-panel stats-panel" id="circleMaskDetails">
                         <summary id="maskTitle">Threshold Mask</summary>
@@ -908,22 +908,22 @@
             <div class="results" id="blockResultsSection">
                 <h2>📊 Block Detection Results</h2>
 
-                <div class="result-image">
-                    <h3>Processed Image</h3>
-                    <div id="blockDetectionImage"></div>
-                </div>
-
-                <details class="collapsible-panel stats-panel" id="blockParametersDetails">
-                    <summary>Detection Parameters</summary>
-                    <div class="stats-section" style="margin-top: 0;">
-                        <div id="blockParametersSnapshot"></div>
-                    </div>
-                </details>
-
                 <div class="attenuation-comparison" id="blockAttenuationComparison"></div>
 
                 <details class="collapsible-panel result-panel" id="blockMasterDetails">
                     <summary>View Detailed Plots, Histograms, and Raw Data</summary>
+
+                    <details class="collapsible-panel stats-panel" id="blockParametersDetails">
+                        <summary>Detection Parameters</summary>
+                        <div class="stats-section" style="margin-top: 0;">
+                            <div id="blockParametersSnapshot"></div>
+                        </div>
+                    </details>
+
+                    <div class="result-image" style="margin-bottom: 16px;">
+                        <h3>Processed Image</h3>
+                        <div id="blockDetectionImage"></div>
+                    </div>
 
                     <details class="collapsible-panel stats-panel" id="blockMaskDetails">
                         <summary id="blockMaskTitle">Threshold Mask</summary>

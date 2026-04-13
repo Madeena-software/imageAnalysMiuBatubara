@@ -277,7 +277,7 @@ def process_blocks(file_bytes, params):
         box4 = box3 + np.array([dx_ref, dy_ref], dtype=np.int32)
         center4 = (int(block_3["center"][0] + dx_ref), int(block_3["center"][1] + dy_ref))
 
-        def _to_block(block_id, detection_type, block_dict=None, center=None, box=None):
+        def _create_block_dict(block_id, detection_type, block_dict=None, center=None, box=None):
             if block_dict is not None:
                 b_center = block_dict["center"]
                 b_box = block_dict["box"]
@@ -303,10 +303,10 @@ def process_blocks(file_bytes, params):
             }
 
         all_blocks = [
-            _to_block(1, "detected", block_dict=block_1),
-            _to_block(2, "detected", block_dict=block_2),
-            _to_block(3, "detected", block_dict=block_3),
-            _to_block(4, "calculated", center=center4, box=box4),
+            _create_block_dict(1, "detected", block_dict=block_1),
+            _create_block_dict(2, "detected", block_dict=block_2),
+            _create_block_dict(3, "detected", block_dict=block_3),
+            _create_block_dict(4, "calculated", center=center4, box=box4),
         ]
 
         h, w = img_16bit.shape[:2]
@@ -838,7 +838,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
             "slope_block4": block4_model["slope"],
             "intercept_block2": block2_model["intercept"],
             "intercept_block4": block4_model["intercept"],
-            # Compatibility aliases
+            # Backward compatibility aliases for callers that still expect
+            # the old numbering where coal curves were exposed as block1/block3.
             "mu_block1": block2_model["mu_coal"],
             "mu_block3": block4_model["mu_coal"],
         }

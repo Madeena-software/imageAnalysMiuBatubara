@@ -592,7 +592,7 @@ def compare_diagonals(file_bytes, grid_results):
         summary = {
             "i0_air": i0_air,
             "x_coal_mm": x_coal_mm,
-            "anti_diagonal_air_cv": anti_air_cv,
+            "anti_air_cv": anti_air_cv,
             "upper_mu_avg": float(np.mean(upper_mu)) if upper_mu else None,
             "lower_mu_avg": float(np.mean(lower_mu)) if lower_mu else None,
             "upper_mu_std": float(np.std(upper_mu)) if upper_mu else None,

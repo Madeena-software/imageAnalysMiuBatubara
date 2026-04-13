@@ -13,8 +13,8 @@ import circle_detection
 
 @pytest.mark.unit
 def test_circle_ratio_method_mu_formula(monkeypatch):
-    i_air = 45000.0
-    i_coal = 18500.0
+    i_air = 52000.0
+    i_coal = 18000.0
     x_mm = 6.0
 
     img = np.zeros((220, 220), dtype=np.uint16)
@@ -32,10 +32,12 @@ def test_circle_ratio_method_mu_formula(monkeypatch):
 
     monkeypatch.setattr(circle_detection, "_load_and_validate_image", lambda _b: img)
     out = circle_detection.compare_diagonals(b"dummy", {"grid": grid})
-    expected_mu = -math.log(i_coal / i_air) / x_mm
+    # Ratio swapped to I_air / I_coal so attenuation stays positive for this 16-bit TIFF intensity profile.
+    expected_mu = math.log(i_air / i_coal) / x_mm
     computed_mu = out["upper_stats"][0]["mu_coal"]
 
     assert_allclose(computed_mu, expected_mu, rtol=0, atol=1e-12)
+    assert computed_mu > 0
 
 
 @pytest.mark.unit

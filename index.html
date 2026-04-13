@@ -4,15 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Redirecting…</title>
-    <meta http-equiv="refresh" content="0; url=public/image-analysis-miu-batubara/index.html" />
     <script>
-      window.location.replace("public/image-analysis-miu-batubara/index.html");
+      window.addEventListener("DOMContentLoaded", () => {
+        const destination = document.getElementById("app-link")?.getAttribute("href");
+        if (destination) {
+          window.location.replace(destination);
+        }
+      });
     </script>
   </head>
   <body>
     <p>
       Redirecting to the application…
-      <a href="public/image-analysis-miu-batubara/index.html">Continue</a>
+      <a id="app-link" href="public/image-analysis-miu-batubara/index.html">Continue</a>
     </p>
   </body>
 </html>

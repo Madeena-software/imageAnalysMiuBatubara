@@ -817,7 +817,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             i_t = np.array([float(s["mean"]) for s in coal_stats], dtype=float)
             i0 = np.clip(air_ref, eps, None)
             i_t_safe = np.clip(i_t, eps, None)
-            ratio = np.clip(i0 / i_t_safe, eps, None)
+            ratio = np.clip(i0 / i_t_safe, eps, np.finfo(np.float64).max)
             y = np.log(ratio)
             slope, intercept = np.polyfit(x, y, 1)
             mu_acrylic = intercept / 14.0

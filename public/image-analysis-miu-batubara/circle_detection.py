@@ -10,7 +10,7 @@ from PIL import Image
 
 DEBUG = True
 # Coefficient of Variation (CV = std/mean) threshold for anti-diagonal air circles.
-# CV > 5% indicates likely ROI contamination by acrylic wall/noise.
+# AIR_CV_THRESHOLD=0.05 means CV > 5% indicates likely ROI contamination by acrylic wall/noise.
 AIR_CV_THRESHOLD = 0.05
 AIR_DIAGONAL_VALIDATION_ERROR = (
     "Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "

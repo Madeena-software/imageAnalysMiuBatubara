@@ -9,7 +9,8 @@ import numpy as np
 from PIL import Image
 
 DEBUG = True
-# Shrink each ROI inward by 12% per side before intensity sampling to avoid bright wall contamination.
+# Shrink each ROI by scaling polygon dimensions to 88% of original (12% total shrink from center)
+# before intensity sampling to avoid bright wall contamination.
 ROI_SHRINK_RATIO = 0.12
 AIR_GRADIENT_MIN_SCORE = 1.6
 AIR_STEP_MAX_REL_DIFF = 0.20
@@ -736,7 +737,9 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions):
         air1 = np.array([s["mean"] for s in block1_stats], dtype=float)
         air3 = np.array([s["mean"] for s in block3_stats], dtype=float)
 
-        if _monotonic_decrease_score(air1) < AIR_GRADIENT_MIN_SCORE or _monotonic_decrease_score(air3) < AIR_GRADIENT_MIN_SCORE:
+        air1_decrease_score = _monotonic_decrease_score(air1)
+        air3_decrease_score = _monotonic_decrease_score(air3)
+        if air1_decrease_score < AIR_GRADIENT_MIN_SCORE or air3_decrease_score < AIR_GRADIENT_MIN_SCORE:
             raise ValueError(AIR_BLOCK_VALIDATION_ERROR)
 
         rel_diff = np.abs(air1 - air3) / np.maximum((air1 + air3) / 2.0, eps)

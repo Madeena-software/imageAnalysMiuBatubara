@@ -112,7 +112,14 @@ def build_circle_attenuation_summary(diagonal_result):
 
 
 def build_block_attenuation_summary(comparison_result):
-    """Create a normalized block attenuation summary for UI rendering."""
+    """Create a normalized block attenuation summary for UI rendering.
+
+    Expected modern payload keys:
+    - summary.mu_block2 and summary.mu_block4 (coal attenuation values)
+
+    Backward-compatible payload keys:
+    - summary.mu_block1 and summary.mu_block3 (legacy naming for the same coal curves)
+    """
     summary = (comparison_result or {}).get("summary", {})
     # Backward-compatible fallback: older payloads may expose coal μ as block1/block3.
     mu_block2 = float(summary.get("mu_block2", summary.get("mu_block1", 0.0)))

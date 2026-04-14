@@ -910,7 +910,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
 
         def _compute_mu_series(air_step_stats, air_values, coal_values):
             step_order = np.array([float(s["x_coal_mm"]) for s in air_step_stats], dtype=float)
-            coal_thickness = 11.0 - step_order  # step_order is 1 -> 10, so coal_thickness is 10 -> 1 mm
+            coal_thickness = step_order
             p_air = np.asarray(air_values, dtype=float)
             p_coal = np.asarray(coal_values, dtype=float)
             delta_p = p_coal - p_air
@@ -976,17 +976,23 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         attenuation_matrix_rows.extend(_build_attenuation_rows("Block 4 (Coal)", block4_model))
 
         step_axis = np.array([s["x_coal_mm"] for s in block1_stats], dtype=float)
-        coal_thickness_axis = 11.0 - step_axis
+        sort_idx = np.argsort(step_axis)
+        coal_thickness_axis = step_axis[sort_idx]
+        air1_plot = air1[sort_idx]
+        coal2_plot = coal2[sort_idx]
+        air3_plot = air3[sort_idx]
+        coal4_plot = coal4[sort_idx]
 
         fig1, ax1 = plt.subplots(figsize=(12, 6))
-        ax1.plot(coal_thickness_axis, air1, marker="^", linewidth=1.5, linestyle="--", label="Block 1 (Air)")
-        ax1.plot(coal_thickness_axis, coal2, marker="o", linewidth=2, label="Block 2 (Coal)")
-        ax1.plot(coal_thickness_axis, air3, marker="v", linewidth=1.5, linestyle="--", label="Block 3 (Air)")
-        ax1.plot(coal_thickness_axis, coal4, marker="s", linewidth=2, label="Block 4 (Coal)")
+        ax1.plot(coal_thickness_axis, air1_plot, marker="^", linewidth=1.5, linestyle="--", label="Block 1 (Air)")
+        ax1.plot(coal_thickness_axis, coal2_plot, marker="o", linewidth=2, label="Block 2 (Coal)")
+        ax1.plot(coal_thickness_axis, air3_plot, marker="v", linewidth=1.5, linestyle="--", label="Block 3 (Air)")
+        ax1.plot(coal_thickness_axis, coal4_plot, marker="s", linewidth=2, label="Block 4 (Coal)")
         ax1.set_xlabel("Coal Thickness (mm)", fontweight="bold")
         ax1.set_ylabel("Pixel Value (P)", fontweight="bold")
         ax1.set_title("Paired Pixel Values by Coal Thickness", fontweight="bold")
         ax1.set_xticks(list(range(1, 11)))
+        ax1.set_xlim(1, 10)
         ax1.grid(True, alpha=0.3)
         ax1.legend()
         plt.tight_layout()
@@ -1007,6 +1013,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             fontweight="bold",
         )
         ax2.set_xticks(list(range(1, 11)))
+        ax2.set_xlim(0, 11)
         ax2.grid(True, alpha=0.3)
         ax2.legend()
         plt.tight_layout()
@@ -1027,7 +1034,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             return float(1.0 - (ss_res / ss_tot))
 
         fig3, ax3 = plt.subplots(figsize=(12, 6))
-        x_fit = np.linspace(1.0, 10.0, 200)
+        x_fit = np.linspace(0.0, 11.0, 200)
 
         block2_y_fit = block2_model["y_fit"]
         block4_y_fit = block4_model["y_fit"]
@@ -1077,6 +1084,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         ax3.set_ylabel("ΔP", fontweight="bold")
         ax3.set_title("Differential Linear Regression: ΔP = μ_coal·x + c", fontweight="bold")
         ax3.set_xticks(list(range(1, 11)))
+        ax3.set_xlim(0, 11)
         ax3.grid(True, alpha=0.3)
         ax3.legend()
         plt.tight_layout()

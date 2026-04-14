@@ -100,13 +100,19 @@ def build_circle_attenuation_summary(diagonal_result):
     summary = (diagonal_result or {}).get("summary", {})
     upper_mu = float(summary.get("upper_mu_avg", 0.0))
     lower_mu = float(summary.get("lower_mu_avg", 0.0))
+    upper_delta_mu = float(summary.get("upper_delta_mu", summary.get("upper_mu_std", 0.0)))
+    lower_delta_mu = float(summary.get("lower_delta_mu", summary.get("lower_mu_std", 0.0)))
     delta_mu = abs(upper_mu - lower_mu)
     return {
         "title": "Attenuation (μ) Comparison",
         "left_label": "Upper Anti-Diagonal Sample",
         "right_label": "Lower Anti-Diagonal Sample",
         "left_mu": upper_mu,
+        "left_delta_mu": upper_delta_mu,
+        "left_mu_pm": f"{upper_mu:.3f} ± {upper_delta_mu:.3f}",
         "right_mu": lower_mu,
+        "right_delta_mu": lower_delta_mu,
+        "right_mu_pm": f"{lower_mu:.3f} ± {lower_delta_mu:.3f}",
         "delta_mu": delta_mu,
     }
 
@@ -124,13 +130,19 @@ def build_block_attenuation_summary(comparison_result):
     # Backward-compatible fallback: older payloads may expose coal μ as block1/block3.
     mu_block2 = float(summary.get("mu_block2", summary.get("mu_block1", 0.0)))
     mu_block4 = float(summary.get("mu_block4", summary.get("mu_block3", 0.0)))
+    delta_mu_block2 = float(summary.get("delta_mu_block2", 0.0))
+    delta_mu_block4 = float(summary.get("delta_mu_block4", 0.0))
     delta_mu = abs(mu_block2 - mu_block4)
     return {
         "title": "Attenuation (μ) Comparison",
         "left_label": "Block 2 (Coal)",
         "right_label": "Block 4 (Coal)",
         "left_mu": mu_block2,
+        "left_delta_mu": delta_mu_block2,
+        "left_mu_pm": summary.get("mu_pm_block2", f"{mu_block2:.3f} ± {delta_mu_block2:.3f}"),
         "right_mu": mu_block4,
+        "right_delta_mu": delta_mu_block4,
+        "right_mu_pm": summary.get("mu_pm_block4", f"{mu_block4:.3f} ± {delta_mu_block4:.3f}"),
         "delta_mu": delta_mu,
     }
 

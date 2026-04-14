@@ -1,4 +1,4 @@
-"""Circle detection and Beer-Lambert analysis utilities for PyScript."""
+"""Circle detection and pre-log FFC differential analysis utilities for PyScript."""
 
 import base64
 import io
@@ -489,13 +489,13 @@ def visualize_circle_invalid_roi(file_bytes, grid_results):
 
 def compare_diagonals(file_bytes, grid_results, params=None):
     """
-    Beer-Lambert analysis for 4x4 circle grid.
+    Pre-log FFC analysis for 4x4 circle grid.
 
-    Physics model used (ratio method):
-            μ_coal = -ln(I_air / I_coal) / x_coal
+    Physics model used (differential method):
+            μ_coal = (P_coal - P_air) / x_coal
 
     Where:
-    - I_air is taken from the average of the four main-diagonal air circles
+    - P_air is taken from anti_air_mean (mean pixel value of the anti-diagonal air circles)
     - x_coal = 6 mm (coal thickness only)
     - Acrylic attenuation cancels out because both paths include identical acrylic layers.
     """
@@ -508,7 +508,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         circle_count = len(grid_data)
         if circle_count != 16:
             raise ValueError(
-                "Circle count validation failed: expected exactly 16 circles before Beer-Lambert physics "
+                "Circle count validation failed: expected exactly 16 circles before differential physics "
                 f"calculation, found {circle_count}. "
                 "Adjust circle detection parameters in the UI and retry."
             )
@@ -571,21 +571,17 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         if anti_air_cv > air_cv_threshold:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
-        # I0 from diagonal air circles (global reference intensity for Beer-Lambert).
-        # Unit is pixel intensity from the 16-bit image.
-        i0_air = float(np.mean([float(s["mean"]) for s in diagonal_stats]))
-        # Coal thickness used in ratio method, in millimeters.
+        # P_air from anti-diagonal air circles.
+        p_air = anti_air_mean
+        # Coal thickness in millimeters.
         x_coal_mm = 6.0
-        eps = 1e-9
-        max_ratio_clip = 1e300  # Keep ln() input finite while preserving physically large ratios.
-        if i0_air <= eps:
-            raise ValueError("Invalid I0 reference: diagonal air intensity is too small.")
+        if x_coal_mm <= 0:
+            raise ValueError("Invalid coal thickness: x_coal_mm must be positive.")
 
         def _attach_mu(stats_list):
             for s in stats_list:
-                i_coal = np.clip(float(s["mean"]), eps, None)
-                ratio = np.clip(i0_air / i_coal, eps, max_ratio_clip)
-                s["mu_coal"] = float(-np.log(ratio) / x_coal_mm)
+                p_coal = float(s["mean"])
+                s["mu_coal"] = float((p_coal - p_air) / x_coal_mm)
             return stats_list
 
         upper_stats = _attach_mu(upper_stats)
@@ -624,8 +620,8 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         for bar, val in zip(bars1, intensity_vals):
             ax1.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.1f}", ha="center", va="bottom", fontsize=10)
         ax1.set_xlabel("Sample Group", fontweight="bold")
-        ax1.set_ylabel("Mean Intensity (I)", fontweight="bold")
-        ax1.set_title("Mean Intensity Comparison (Upper vs Lower Anti-Diagonal Samples)", fontweight="bold")
+        ax1.set_ylabel("Pixel Value (P)", fontweight="bold")
+        ax1.set_title("Mean Pixel Value (P) Comparison (Upper vs Lower Anti-Diagonal Samples)", fontweight="bold")
         ax1.grid(True, alpha=0.3)
         plt.tight_layout()
 
@@ -656,7 +652,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         plt.close(fig2)
 
         summary = {
-            "i0_air": i0_air,
+            "p_air": p_air,
             "x_coal_mm": x_coal_mm,
             "anti_air_cv": anti_air_cv,
             "air_cv_threshold": air_cv_threshold,
@@ -688,7 +684,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         }
 
     except Exception as e:
-        raise ValueError(f"Circle Beer-Lambert analysis failed: {str(e)}") from e
+        raise ValueError(f"Circle differential attenuation analysis failed: {str(e)}") from e
 
 
 __all__ = [

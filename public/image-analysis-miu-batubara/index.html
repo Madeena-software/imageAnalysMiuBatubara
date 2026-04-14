@@ -1257,10 +1257,10 @@
                 steps_html = f'''
                 <div class="attenuation-comparison__steps">
                     <div class="attenuation-comparison__steps-title">Step-by-Step μ Calculation and 16-bit Normalization</div>
-                    <div class="attenuation-comparison__shared-note">mean Pair = {air_mean:.1f} for both upper and lower anti-diagonal bands</div>
+                    <div class="attenuation-comparison__shared-note">mean Pair = {air_mean:.1f} for both upper and lower anti-diagonal samples</div>
                     <div class="attenuation-comparison__step-grid">
                         <div class="attenuation-comparison__step-card">
-                            <div class="attenuation-comparison__step-card-title">Upper Anti-Diagonal</div>
+                            <div class="attenuation-comparison__step-card-title">Upper Anti-Diagonal Sample</div>
                             <div class="attenuation-comparison__formula-line">mean Pcoal = {upper_mean:.1f}</div>
                             <div class="attenuation-comparison__formula-line">|Pcoal - Pair| = |{upper_mean:.1f} - {air_mean:.1f}| = {upper_abs_diff:.1f}</div>
                             <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {upper_abs_diff:.1f} / {divider_mm:.0f} = {upper_mu:.5f}</div>
@@ -1269,7 +1269,7 @@
                             <div class="attenuation-comparison__formula-result">Upper sample = {upper_mu_normalized:.3f} m^-1</div>
                         </div>
                         <div class="attenuation-comparison__step-card">
-                            <div class="attenuation-comparison__step-card-title">Lower Anti-Diagonal</div>
+                            <div class="attenuation-comparison__step-card-title">Lower Anti-Diagonal Sample</div>
                             <div class="attenuation-comparison__formula-line">mean Pcoal = {lower_mean:.1f}</div>
                             <div class="attenuation-comparison__formula-line">|Pcoal - Pair| = |{lower_mean:.1f} - {air_mean:.1f}| = {lower_abs_diff:.1f}</div>
                             <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {lower_abs_diff:.1f} / {divider_mm:.0f} = {lower_mu:.5f}</div>
@@ -1294,6 +1294,79 @@
             </div>
             {steps_html}
             '''
+
+        def build_circle_histogram_summary(diagonal_result, histogram_result=None):
+            """Prefer histogram-derived ROI means for circle Pair/Pcoal display values."""
+            base_summary = dict((diagonal_result or {}).get('summary', {}))
+            histogram_stats = (histogram_result or {}).get('histogram_stats', [])
+            if not histogram_stats:
+                return base_summary
+
+            grid_lookup = {}
+            for item in histogram_stats:
+                grid_pos = item.get('grid_pos')
+                if not isinstance(grid_pos, (list, tuple)) or len(grid_pos) != 2:
+                    continue
+                try:
+                    row = int(grid_pos[0])
+                    col = int(grid_pos[1])
+                except Exception:
+                    continue
+                grid_lookup[(row, col)] = item
+
+            if not grid_lookup:
+                return base_summary
+
+            max_row = max(row for row, _ in grid_lookup.keys())
+            max_col = max(col for _, col in grid_lookup.keys())
+            grid_size = max(max_row, max_col) + 1
+
+            def _mean_for(predicate):
+                values = []
+                medians = []
+                stds = []
+                for (row, col), item in grid_lookup.items():
+                    if not predicate(row, col):
+                        continue
+                    values.append(float(item.get('mean', 0.0)))
+                    medians.append(float(item.get('median', 0.0)))
+                    stds.append(float(item.get('std', 0.0)))
+                if not values:
+                    return None
+                return {
+                    'mean': float(np.mean(values)),
+                    'median': float(np.mean(medians)) if medians else 0.0,
+                    'std': float(np.std(values)) if values else 0.0,
+                }
+
+            air_stats = _mean_for(lambda row, col: row == col)
+            upper_stats = _mean_for(lambda row, col: row < col)
+            lower_stats = _mean_for(lambda row, col: row > col)
+            if not air_stats or not upper_stats or not lower_stats:
+                return base_summary
+
+            x_coal_mm = float(base_summary.get('x_coal_mm', 6.0))
+            if x_coal_mm <= 0:
+                x_coal_mm = 6.0
+
+            upper_mu_avg = float(abs(upper_stats['mean'] - air_stats['mean']) / x_coal_mm)
+            lower_mu_avg = float(abs(lower_stats['mean'] - air_stats['mean']) / x_coal_mm)
+
+            base_summary.update({
+                'p_air': air_stats['mean'],
+                'upper_avg_mean': upper_stats['mean'],
+                'lower_avg_mean': lower_stats['mean'],
+                'upper_intensity_avg': upper_stats['mean'],
+                'lower_intensity_avg': lower_stats['mean'],
+                'upper_avg_median': upper_stats['median'],
+                'lower_avg_median': lower_stats['median'],
+                'upper_std_means': upper_stats['std'],
+                'lower_std_means': lower_stats['std'],
+                'mean_difference': float(abs(upper_stats['mean'] - lower_stats['mean'])),
+                'upper_mu_avg': upper_mu_avg,
+                'lower_mu_avg': lower_mu_avg,
+            })
+            return base_summary
         current_mode = 'circle'  # 'circle' or 'block'
 
         def show_message(message, is_error=False):
@@ -1504,7 +1577,7 @@
                         try:
                             diagonal_result = compare_diagonals(file_bytes, grid_result, params)
                             if diagonal_result:
-                                display_diagonal_results(diagonal_result)
+                                display_diagonal_results(diagonal_result, histogram_result)
                         except Exception as diag_error:
                             diag_msg = str(diag_error)
                             if "E_CIRCLE_AIR_ROI" in diag_msg:
@@ -1521,7 +1594,7 @@
                                     relaxed_params['air_cv_threshold'] = 1.0
                                     relaxed_diagonal_result = compare_diagonals(file_bytes, grid_result, relaxed_params)
                                     if relaxed_diagonal_result:
-                                        display_diagonal_results(relaxed_diagonal_result)
+                                        display_diagonal_results(relaxed_diagonal_result, histogram_result)
                                         circle_analysis_warning = (
                                             "AIR ROI consistency check failed in strict mode; "
                                             "attenuation is shown using relaxed validation (AIR CV threshold = 1.0)."
@@ -2079,12 +2152,15 @@
             if histogram_stats:
                 histogram_html += '''
                 <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
-                    <h4 style="color: #333; margin-bottom: 12px;">ROI Area for 16 Circles</h4>
+                    <h4 style="color: #333; margin-bottom: 12px;">Histogram Statistics for 16 Circles</h4>
                     <table class="stats-table">
                         <thead>
                             <tr>
                                 <th>Circle</th>
                                 <th>Grid Position</th>
+                                <th>Mean</th>
+                                <th>Median</th>
+                                <th>Std Dev</th>
                                 <th>Radius</th>
                                 <th>ROI Area</th>
                             </tr>
@@ -2097,6 +2173,9 @@
                             <tr>
                                 <td>{item.get('position_id', '')}</td>
                                 <td>[{grid_pos[0]}, {grid_pos[1]}]</td>
+                                <td>{item.get('mean', 0.0):.1f}</td>
+                                <td>{item.get('median', 0.0):.1f}</td>
+                                <td>{item.get('std', 0.0):.1f}</td>
                                 <td>{item.get('radius', 0.0):.0f}</td>
                                 <td>{item.get('roi_area', 0.0):.1f}</td>
                             </tr>
@@ -2106,6 +2185,7 @@
                     </table>
                     <div style="margin-top: 10px; color: #555; font-size: 0.95rem;">
                         ROI area consistency: {histogram_result.get('roi_area_min', 0.0):.1f} to {histogram_result.get('roi_area_max', 0.0):.1f}px², mean {histogram_result.get('roi_area_mean', 0.0):.1f}px².
+                        Pair and Pcoal values below are taken from these histogram means.
                     </div>
                 </div>
                 '''
@@ -2146,7 +2226,7 @@
             img_el.style.borderRadius = "10px"
             container_el.replaceChildren(img_el)
 
-        def display_diagonal_results(diagonal_result):
+        def display_diagonal_results(diagonal_result, histogram_result=None):
             """Display diagonal comparison results"""
             intensity_div = document.getElementById('circleFinalIntensityPlot')
             if 'intensity_plot_image' in diagonal_result:
@@ -2173,7 +2253,7 @@
                     "Circle Mu Comparison",
                 )
             
-            summary = diagonal_result['summary']
+            summary = build_circle_histogram_summary(diagonal_result, histogram_result)
             summary_div = document.getElementById('diagonalSummary')
             
             summary_html = f'''
@@ -2183,8 +2263,8 @@
                     <thead>
                         <tr>
                             <th>Metric</th>
-                            <th>Upper Anti-Diagonal Sample</th>
-                            <th>Lower Anti-Diagonal Sample</th>
+                                <th>Upper Anti-Diagonal Sample</th>
+                                <th>Lower Anti-Diagonal Sample</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -2245,7 +2325,7 @@
             summary_div.innerHTML = summary_html
             render_attenuation_summary(
                 'circleAttenuationComparison',
-                build_circle_attenuation_summary(diagonal_result),
+                build_circle_attenuation_summary({'summary': summary}),
             )
 
         def display_circle_invalid_roi_guidance(invalid_roi_result):

@@ -1001,9 +1001,9 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         ax2.plot(block2_model["coal_thickness"], block2_model["y_n"], marker="o", linewidth=2, label="Block 2 Y_n")
         ax2.plot(block4_model["coal_thickness"], block4_model["y_n"], marker="s", linewidth=2, label="Block 4 Y_n")
         ax2.set_xlabel("Coal Thickness (mm)", fontweight="bold")
-        ax2.set_ylabel("Y_n (Point-wise Attenuation)", fontweight="bold")
+        ax2.set_ylabel("Y_n (point-wise attenuation)", fontweight="bold")
         ax2.set_title(
-            f"Point-wise Attenuation Y_n by Step (μ2={block2_model['mu_coal']:.5f}, μ4={block4_model['mu_coal']:.5f})",
+            f"Y_n (point-wise attenuation) by step (μ2={block2_model['mu_coal']:.5f}, μ4={block4_model['mu_coal']:.5f})",
             fontweight="bold",
         )
         ax2.set_xticks(list(range(1, 11)))

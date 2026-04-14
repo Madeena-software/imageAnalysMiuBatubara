@@ -108,8 +108,12 @@ def build_circle_attenuation_summary(diagonal_result):
     lower_abs_diff = abs(lower_mean - air_mean)
     upper_mu = float(summary.get("upper_mu_avg", 0.0))
     lower_mu = float(summary.get("lower_mu_avg", 0.0))
+    upper_mu_std = float(summary.get("upper_mu_std", 0.0))
+    lower_mu_std = float(summary.get("lower_mu_std", 0.0))
     upper_mu_normalized = float((upper_mu / normalized_divisor) * normalized_scale)
     lower_mu_normalized = float((lower_mu / normalized_divisor) * normalized_scale)
+    upper_mu_normalized_std = float((upper_mu_std / normalized_divisor) * normalized_scale)
+    lower_mu_normalized_std = float((lower_mu_std / normalized_divisor) * normalized_scale)
     return {
         "title": "Attenuation (μ) Comparison",
         "left_label": "Upper Anti-Diagonal Sample",
@@ -118,12 +122,20 @@ def build_circle_attenuation_summary(diagonal_result):
         "right_display_label": "Lower Anti-Diagonal Sample (cm^-1)",
         "left_display_value": upper_mu_normalized,
         "right_display_value": lower_mu_normalized,
+        "left_mu_pm": f"{upper_mu_normalized:.3f} ± {upper_mu_normalized_std:.3f}",
+        "right_mu_pm": f"{lower_mu_normalized:.3f} ± {lower_mu_normalized_std:.3f}",
         "display_unit": "cm^-1",
         "conversion_divisor": normalized_divisor,
         "conversion_scale": normalized_scale,
         "left_mu": upper_mu,
         "right_mu": lower_mu,
-        "show_delta": False,
+        "left_mu_avg": upper_mu,
+        "right_mu_avg": lower_mu,
+        "left_mu_std": upper_mu_std,
+        "right_mu_std": lower_mu_std,
+        "left_mu_final": upper_mu,
+        "right_mu_final": lower_mu,
+        "show_delta": True,
         "show_steps": False,
         "air_mean": air_mean,
         "upper_pcoal_mean": upper_mean,

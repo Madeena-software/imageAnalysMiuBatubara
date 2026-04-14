@@ -1337,6 +1337,8 @@
 
             upper_mu_avg = float(abs(upper_stats['mean'] - air_stats['mean']) / x_coal_mm)
             lower_mu_avg = float(abs(lower_stats['mean'] - air_stats['mean']) / x_coal_mm)
+            upper_mu_std = float(upper_stats['std'] / x_coal_mm)
+            lower_mu_std = float(lower_stats['std'] / x_coal_mm)
 
             base_summary.update({
                 'p_air': air_stats['mean'],
@@ -1351,6 +1353,10 @@
                 'mean_difference': float(abs(upper_stats['mean'] - lower_stats['mean'])),
                 'upper_mu_avg': upper_mu_avg,
                 'lower_mu_avg': lower_mu_avg,
+                'upper_mu_std': upper_mu_std,
+                'lower_mu_std': lower_mu_std,
+                'upper_mu_final': upper_mu_avg,
+                'lower_mu_final': lower_mu_avg,
             })
             return base_summary
         current_mode = 'circle'  # 'circle' or 'block'
@@ -2239,8 +2245,8 @@
                         </tr>
                         <tr>
                             <td>Normalized μ (m^-1)</td>
-                            <td>{(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f}</td>
-                            <td>{(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f}</td>
+                            <td>{(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f} ± {(summary['upper_mu_std'] / 65535.0) * 1000.0:.3f}</td>
+                            <td>{(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f} ± {(summary['lower_mu_std'] / 65535.0) * 1000.0:.3f}</td>
                         </tr>
                         <tr>
                             <td>|Pcoal - Pair|</td>
@@ -2253,9 +2259,9 @@
                             <td>{summary['x_coal_mm']:.0f} mm</td>
                         </tr>
                         <tr>
-                            <td>μ = |Pcoal - Pair| / 6</td>
-                            <td>{summary['upper_mu_avg']:.5f}</td>
-                            <td>{summary['lower_mu_avg']:.5f}</td>
+                            <td>μ = μ avg ± std</td>
+                            <td>{summary['upper_mu_avg']:.5f} ± {summary['upper_mu_std']:.5f}</td>
+                            <td>{summary['lower_mu_avg']:.5f} ± {summary['lower_mu_std']:.5f}</td>
                         </tr>
                         <tr>
                             <td>Average Median</td>
@@ -2273,10 +2279,10 @@
                     <h4 style="color: #333; margin-bottom: 12px;">Step-by-Step μ Calculation</h4>
                     <div style="color: #555; font-size: 0.95rem; line-height: 1.8;">
                         <div><strong>Formula:</strong> μ = |Pcoal - Pair| / {summary['x_coal_mm']:.0f} mm</div>
-                        <div style="margin-top: 8px;"><strong>Upper:</strong> μ = |{summary['upper_avg_mean']:.1f} - {summary['p_air']:.1f}| / {summary['x_coal_mm']:.0f} = {abs(summary['upper_avg_mean'] - summary['p_air']):.1f} / {summary['x_coal_mm']:.0f} = {summary['upper_mu_avg']:.5f}</div>
-                        <div><strong>Lower:</strong> μ = |{summary['lower_avg_mean']:.1f} - {summary['p_air']:.1f}| / {summary['x_coal_mm']:.0f} = {abs(summary['lower_avg_mean'] - summary['p_air']):.1f} / {summary['x_coal_mm']:.0f} = {summary['lower_mu_avg']:.5f}</div>
-                        <div style="margin-top: 8px;"><strong>Upper normalized:</strong> {summary['upper_mu_avg']:.5f} / 65535 x 1000 = {(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1</div>
-                        <div><strong>Lower normalized:</strong> {summary['lower_mu_avg']:.5f} / 65535 x 1000 = {(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1</div>
+                        <div style="margin-top: 8px;"><strong>Upper:</strong> μ = {summary['upper_mu_avg']:.5f} ± {summary['upper_mu_std']:.5f}</div>
+                        <div><strong>Lower:</strong> μ = {summary['lower_mu_avg']:.5f} ± {summary['lower_mu_std']:.5f}</div>
+                        <div style="margin-top: 8px;"><strong>Upper normalized:</strong> {summary['upper_mu_avg']:.5f} / 65535 x 1000 = {(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1 ± {(summary['upper_mu_std'] / 65535.0) * 1000.0:.3f}</div>
+                        <div><strong>Lower normalized:</strong> {summary['lower_mu_avg']:.5f} / 65535 x 1000 = {(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1 ± {(summary['lower_mu_std'] / 65535.0) * 1000.0:.3f}</div>
                     </div>
                 </div>
             </div>

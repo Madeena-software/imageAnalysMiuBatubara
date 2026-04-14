@@ -908,8 +908,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         if bottom_rel_diff > air_step_max_rel_diff:
             air_validation_warning = AIR_BLOCK_VALIDATION_ERROR
 
-        def _compute_mu_series(air_values, coal_values):
-            step_order = np.array([float(s["x_coal_mm"]) for s in block1_stats], dtype=float)
+        def _compute_mu_series(step_stats, air_values, coal_values):
+            step_order = np.array([float(s["x_coal_mm"]) for s in step_stats], dtype=float)
             coal_thickness = 11.0 - step_order  # 10 -> 1 mm
             p_air = np.asarray(air_values, dtype=float)
             p_coal = np.asarray(coal_values, dtype=float)
@@ -933,8 +933,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
                 "intercept": float(intercept),
             }
 
-        block2_model = _compute_mu_series(air1, coal2)
-        block4_model = _compute_mu_series(air3, coal4)
+        block2_model = _compute_mu_series(block1_stats, air1, coal2)
+        block4_model = _compute_mu_series(block3_stats, air3, coal4)
 
         def _build_attenuation_rows(sample_label, model):
             rows = []
@@ -954,7 +954,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
                 rows.append(
                     {
                         "sample": sample_label,
-                        "step": int(step_value),
+                        "step": int(idx),
                         "coal_mm": float(coal_value),
                         "p_air": float(p_air_value),
                         "p_coal": float(p_coal_value),

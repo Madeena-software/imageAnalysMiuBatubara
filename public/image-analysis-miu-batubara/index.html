@@ -450,6 +450,66 @@
             color: #7c3aed;
         }
 
+        .attenuation-comparison__steps {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(102, 126, 234, 0.18);
+        }
+
+        .attenuation-comparison__steps-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #16213e;
+            margin-bottom: 12px;
+            letter-spacing: 0.2px;
+        }
+
+        .attenuation-comparison__shared-note {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(102, 126, 234, 0.18);
+            border-radius: 999px;
+            padding: 8px 14px;
+            margin-bottom: 14px;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .attenuation-comparison__step-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .attenuation-comparison__step-card {
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(102, 126, 234, 0.16);
+            border-radius: 14px;
+            padding: 16px 16px 14px;
+        }
+
+        .attenuation-comparison__step-card-title {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #1f2d4d;
+            margin-bottom: 10px;
+        }
+
+        .attenuation-comparison__formula-line {
+            color: #334155;
+            font-size: 0.98rem;
+            margin-top: 6px;
+        }
+
+        .attenuation-comparison__formula-result {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed rgba(102, 126, 234, 0.3);
+            font-size: 1.08rem;
+            font-weight: 900;
+            color: #7c3aed;
+        }
+
         .parameter-summary {
             background: #fff;
             border-radius: 10px;
@@ -1171,20 +1231,68 @@
             if not summary_payload:
                 container.innerHTML = ''
                 return
+            show_delta = summary_payload.get("show_delta", True)
+            left_value = summary_payload.get("left_display_value", summary_payload.get("left_mu", 0.0))
+            right_value = summary_payload.get("right_display_value", summary_payload.get("right_mu", 0.0))
+            display_unit = summary_payload.get("display_unit", "")
+            left_display = summary_payload.get("left_mu_pm", f"{left_value:.3f}") if show_delta else f"{left_value:.3f}"
+            right_display = summary_payload.get("right_mu_pm", f"{right_value:.3f}") if show_delta else f"{right_value:.3f}"
+            if display_unit and not show_delta:
+                left_display = f"{left_display} {display_unit}"
+                right_display = f"{right_display} {display_unit}"
+            steps_html = ''
+            if summary_payload.get("show_steps"):
+                air_mean = float(summary_payload.get("air_mean", 0.0))
+                upper_mean = float(summary_payload.get("upper_pcoal_mean", 0.0))
+                lower_mean = float(summary_payload.get("lower_pcoal_mean", 0.0))
+                divider_mm = float(summary_payload.get("divider_mm", 6.0))
+                upper_abs_diff = float(summary_payload.get("upper_abs_diff", abs(upper_mean - air_mean)))
+                lower_abs_diff = float(summary_payload.get("lower_abs_diff", abs(lower_mean - air_mean)))
+                upper_mu = float(summary_payload.get("left_mu", 0.0))
+                lower_mu = float(summary_payload.get("right_mu", 0.0))
+                conversion_divisor = float(summary_payload.get("conversion_divisor", 65535.0))
+                conversion_scale = float(summary_payload.get("conversion_scale", 1000.0))
+                upper_mu_normalized = float(summary_payload.get("upper_mu_normalized", (upper_mu / conversion_divisor) * conversion_scale))
+                lower_mu_normalized = float(summary_payload.get("lower_mu_normalized", (lower_mu / conversion_divisor) * conversion_scale))
+                steps_html = f'''
+                <div class="attenuation-comparison__steps">
+                    <div class="attenuation-comparison__steps-title">Step-by-Step μ Calculation and 16-bit Normalization</div>
+                    <div class="attenuation-comparison__shared-note">mean Pair = {air_mean:.1f} for both upper and lower anti-diagonal bands</div>
+                    <div class="attenuation-comparison__step-grid">
+                        <div class="attenuation-comparison__step-card">
+                            <div class="attenuation-comparison__step-card-title">Upper Anti-Diagonal</div>
+                            <div class="attenuation-comparison__formula-line">mean Pcoal = {upper_mean:.1f}</div>
+                            <div class="attenuation-comparison__formula-line">|Pcoal - Pair| = |{upper_mean:.1f} - {air_mean:.1f}| = {upper_abs_diff:.1f}</div>
+                            <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {upper_abs_diff:.1f} / {divider_mm:.0f} = {upper_mu:.5f}</div>
+                            <div class="attenuation-comparison__formula-line">Normalize μ to m^-1 = ({upper_mu:.5f} / {conversion_divisor:.0f}) x {conversion_scale:.0f} = {upper_mu_normalized:.3f}</div>
+                            <div class="attenuation-comparison__formula-result">μ_upper = {upper_mu:.5f}</div>
+                            <div class="attenuation-comparison__formula-result">Upper sample = {upper_mu_normalized:.3f} m^-1</div>
+                        </div>
+                        <div class="attenuation-comparison__step-card">
+                            <div class="attenuation-comparison__step-card-title">Lower Anti-Diagonal</div>
+                            <div class="attenuation-comparison__formula-line">mean Pcoal = {lower_mean:.1f}</div>
+                            <div class="attenuation-comparison__formula-line">|Pcoal - Pair| = |{lower_mean:.1f} - {air_mean:.1f}| = {lower_abs_diff:.1f}</div>
+                            <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {lower_abs_diff:.1f} / {divider_mm:.0f} = {lower_mu:.5f}</div>
+                            <div class="attenuation-comparison__formula-line">Normalize μ to m^-1 = ({lower_mu:.5f} / {conversion_divisor:.0f}) x {conversion_scale:.0f} = {lower_mu_normalized:.3f}</div>
+                            <div class="attenuation-comparison__formula-result">μ_lower = {lower_mu:.5f}</div>
+                            <div class="attenuation-comparison__formula-result">Lower sample = {lower_mu_normalized:.3f} m^-1</div>
+                        </div>
+                    </div>
+                </div>
+                '''
+            left_label = summary_payload.get("left_display_label", summary_payload.get("left_label", "Sample A"))
+            right_label = summary_payload.get("right_display_label", summary_payload.get("right_label", "Sample B"))
             container.innerHTML = f'''
             <h3>{summary_payload.get("title", "Attenuation (μ) Comparison")}</h3>
             <div class="attenuation-comparison__item">
-                <span class="attenuation-comparison__label">{summary_payload.get("left_label", "Sample A")}:</span>
-                <span class="attenuation-comparison__value">{summary_payload.get("left_mu_pm", f"{summary_payload.get('left_mu', 0.0):.3f} ± {summary_payload.get('left_delta_mu', 0.0):.3f}")}</span>
+                <span class="attenuation-comparison__label">{left_label}:</span>
+                <span class="attenuation-comparison__value">{left_display}</span>
             </div>
             <div class="attenuation-comparison__item">
-                <span class="attenuation-comparison__label">{summary_payload.get("right_label", "Sample B")}:</span>
-                <span class="attenuation-comparison__value">{summary_payload.get("right_mu_pm", f"{summary_payload.get('right_mu', 0.0):.3f} ± {summary_payload.get('right_delta_mu', 0.0):.3f}")}</span>
+                <span class="attenuation-comparison__label">{right_label}:</span>
+                <span class="attenuation-comparison__value">{right_display}</span>
             </div>
-            <div class="attenuation-comparison__item attenuation-comparison__delta-row">
-                <span class="attenuation-comparison__label">Absolute Difference:</span>
-                <span class="attenuation-comparison__delta">Δμ = {summary_payload.get("delta_mu", 0.0):.5f}</span>
-            </div>
+            {steps_html}
             '''
         current_mode = 'circle'  # 'circle' or 'block'
 
@@ -1629,7 +1737,7 @@
             mask_title.textContent = f'Threshold Mask (< {threshold})'
             
             mask_div = document.getElementById('maskImage')
-            mask_div.innerHTML = f'<img src="data:image/png;base64,{result["mask_image"]}" alt="Threshold Mask" />'
+            mask_div.innerHTML = f'<img src="data:image/png;base64,{result["mask_image"]}" alt="Threshold Mask" style="width: 100%; height: auto; object-fit: contain; display: block;" />'
             
             stats_div = document.getElementById('statsTable')
             table_html = '''
@@ -1683,7 +1791,7 @@
                 
                 mask_div = document.getElementById('blockMaskImage')
                 if 'mask_image' in result:
-                    mask_div.innerHTML = f'<img src="data:image/png;base64,{result["mask_image"]}" alt="Threshold Mask" />'
+                    mask_div.innerHTML = f'<img src="data:image/png;base64,{result["mask_image"]}" alt="Threshold Mask" style="width: 100%; height: auto; object-fit: contain; display: block;" />'
                     console.log("Mask image set")
                 
                 stats_div = document.getElementById('blockStatsTable')
@@ -1961,12 +2069,47 @@
         def display_grid_results(grid_result):
             """Display grid analysis results"""
             grid_div = document.getElementById('gridImage')
-            grid_div.innerHTML = f'<img src="data:image/png;base64,{grid_result["grid_image"]}" alt="Grid Analysis" style="max-width: 100%; border-radius: 10px;" />'
+            grid_div.innerHTML = f'<img src="data:image/png;base64,{grid_result["grid_image"]}" alt="Grid Analysis" style="width: 100%; height: auto; object-fit: contain; border-radius: 10px;" />'
 
         def display_histogram_results(histogram_result):
             """Display histogram analysis results"""
             histogram_div = document.getElementById('histogramImage')
-            histogram_div.innerHTML = f'<img src="data:image/png;base64,{histogram_result["histogram_image"]}" alt="Histogram Analysis" style="max-width: 100%; border-radius: 10px;" />'
+            histogram_stats = histogram_result.get('histogram_stats', [])
+            histogram_html = f'<img src="data:image/png;base64,{histogram_result["histogram_image"]}" alt="Histogram Analysis" style="width: 100%; height: auto; object-fit: contain; border-radius: 10px;" />'
+            if histogram_stats:
+                histogram_html += '''
+                <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
+                    <h4 style="color: #333; margin-bottom: 12px;">ROI Area for 16 Circles</h4>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Circle</th>
+                                <th>Grid Position</th>
+                                <th>Radius</th>
+                                <th>ROI Area</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                '''
+                for item in histogram_stats:
+                    grid_pos = item.get('grid_pos', ['', ''])
+                    histogram_html += f'''
+                            <tr>
+                                <td>{item.get('position_id', '')}</td>
+                                <td>[{grid_pos[0]}, {grid_pos[1]}]</td>
+                                <td>{item.get('radius', 0.0):.0f}</td>
+                                <td>{item.get('roi_area', 0.0):.1f}</td>
+                            </tr>
+                    '''
+                histogram_html += f'''
+                        </tbody>
+                    </table>
+                    <div style="margin-top: 10px; color: #555; font-size: 0.95rem;">
+                        ROI area consistency: {histogram_result.get('roi_area_min', 0.0):.1f} to {histogram_result.get('roi_area_max', 0.0):.1f}px², mean {histogram_result.get('roi_area_mean', 0.0):.1f}px².
+                    </div>
+                </div>
+                '''
+            histogram_div.innerHTML = histogram_html
 
         def to_data_uri_png(image_value):
             """Normalize base64/URI plot values into a PNG data URI."""
@@ -2042,30 +2185,61 @@
                             <th>Metric</th>
                             <th>Upper Anti-Diagonal Sample</th>
                             <th>Lower Anti-Diagonal Sample</th>
-                            <th>Difference</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td>Average Mean</td>
+                            <td>Mean Pair</td>
+                            <td>{summary['p_air']:.1f}</td>
+                            <td>{summary['p_air']:.1f}</td>
+                        </tr>
+                        <tr>
+                            <td>Mean Pcoal</td>
                             <td>{summary['upper_avg_mean']:.1f}</td>
                             <td>{summary['lower_avg_mean']:.1f}</td>
-                            <td>{summary['mean_difference']:.1f}</td>
+                        </tr>
+                        <tr>
+                            <td>Normalized μ (m^-1)</td>
+                            <td>{(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f}</td>
+                            <td>{(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f}</td>
+                        </tr>
+                        <tr>
+                            <td>|Pcoal - Pair|</td>
+                            <td>{abs(summary['upper_avg_mean'] - summary['p_air']):.1f}</td>
+                            <td>{abs(summary['lower_avg_mean'] - summary['p_air']):.1f}</td>
+                        </tr>
+                        <tr>
+                            <td>Divider</td>
+                            <td>{summary['x_coal_mm']:.0f} mm</td>
+                            <td>{summary['x_coal_mm']:.0f} mm</td>
+                        </tr>
+                        <tr>
+                            <td>μ = |Pcoal - Pair| / 6</td>
+                            <td>{summary['upper_mu_avg']:.5f}</td>
+                            <td>{summary['lower_mu_avg']:.5f}</td>
                         </tr>
                         <tr>
                             <td>Average Median</td>
                             <td>{summary['upper_avg_median']:.1f}</td>
                             <td>{summary['lower_avg_median']:.1f}</td>
-                            <td>{abs(summary['lower_avg_median'] - summary['upper_avg_median']):.1f}</td>
                         </tr>
                         <tr>
                             <td>Std of Means</td>
                             <td>{summary['upper_std_means']:.1f}</td>
                             <td>{summary['lower_std_means']:.1f}</td>
-                            <td>-</td>
                         </tr>
                     </tbody>
                 </table>
+                <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
+                    <h4 style="color: #333; margin-bottom: 12px;">Step-by-Step μ Calculation</h4>
+                    <div style="color: #555; font-size: 0.95rem; line-height: 1.8;">
+                        <div><strong>Formula:</strong> μ = |Pcoal - Pair| / {summary['x_coal_mm']:.0f} mm</div>
+                        <div style="margin-top: 8px;"><strong>Upper:</strong> μ = |{summary['upper_avg_mean']:.1f} - {summary['p_air']:.1f}| / {summary['x_coal_mm']:.0f} = {abs(summary['upper_avg_mean'] - summary['p_air']):.1f} / {summary['x_coal_mm']:.0f} = {summary['upper_mu_avg']:.5f}</div>
+                        <div><strong>Lower:</strong> μ = |{summary['lower_avg_mean']:.1f} - {summary['p_air']:.1f}| / {summary['x_coal_mm']:.0f} = {abs(summary['lower_avg_mean'] - summary['p_air']):.1f} / {summary['x_coal_mm']:.0f} = {summary['lower_mu_avg']:.5f}</div>
+                        <div style="margin-top: 8px;"><strong>Upper normalized:</strong> {summary['upper_mu_avg']:.5f} / 65535 x 1000 = {(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1</div>
+                        <div><strong>Lower normalized:</strong> {summary['lower_mu_avg']:.5f} / 65535 x 1000 = {(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1</div>
+                    </div>
+                </div>
             </div>
             '''
             summary_div.innerHTML = summary_html

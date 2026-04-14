@@ -279,9 +279,14 @@ def generate_circle_detection_pdf(
             pdf.add_section_title("Diagonal Comparison")
 
             summary = diagonal_result.get("summary", {})
+            upper_normalized = (float(summary.get("upper_mu_avg", 0.0)) / 65535.0) * 1000.0
+            lower_normalized = (float(summary.get("lower_mu_avg", 0.0)) / 65535.0) * 1000.0
             pdf.add_subsection_title("Lower Diagonal Statistics")
             pdf.add_key_value(
                 "Average Mean", f"{summary.get('lower_avg_mean', 'N/A'):.2f}"
+            )
+            pdf.add_key_value(
+                "Normalized Sample (m^-1)", f"{lower_normalized:.3f}"
             )
             pdf.add_key_value(
                 "Average Median", f"{summary.get('lower_avg_median', 'N/A'):.2f}"
@@ -294,6 +299,9 @@ def generate_circle_detection_pdf(
             pdf.add_subsection_title("Upper Diagonal Statistics")
             pdf.add_key_value(
                 "Average Mean", f"{summary.get('upper_avg_mean', 'N/A'):.2f}"
+            )
+            pdf.add_key_value(
+                "Normalized Sample (m^-1)", f"{upper_normalized:.3f}"
             )
             pdf.add_key_value(
                 "Average Median", f"{summary.get('upper_avg_median', 'N/A'):.2f}"

@@ -98,22 +98,41 @@ def visualize_block_invalid_roi(file_bytes, subdivisions):
 def build_circle_attenuation_summary(diagonal_result):
     """Create a normalized circle attenuation summary for UI rendering."""
     summary = (diagonal_result or {}).get("summary", {})
+    air_mean = float(summary.get("p_air", 0.0))
+    upper_mean = float(summary.get("upper_avg_mean", 0.0))
+    lower_mean = float(summary.get("lower_avg_mean", 0.0))
+    divider_mm = float(summary.get("x_coal_mm", 6.0))
+    normalized_divisor = 65535.0
+    normalized_scale = 1000.0
+    upper_abs_diff = abs(upper_mean - air_mean)
+    lower_abs_diff = abs(lower_mean - air_mean)
     upper_mu = float(summary.get("upper_mu_avg", 0.0))
     lower_mu = float(summary.get("lower_mu_avg", 0.0))
-    upper_delta_mu = float(summary.get("upper_delta_mu", summary.get("upper_mu_std", 0.0)))
-    lower_delta_mu = float(summary.get("lower_delta_mu", summary.get("lower_mu_std", 0.0)))
-    delta_mu = abs(upper_mu - lower_mu)
+    upper_mu_normalized = float((upper_mu / normalized_divisor) * normalized_scale)
+    lower_mu_normalized = float((lower_mu / normalized_divisor) * normalized_scale)
     return {
         "title": "Attenuation (μ) Comparison",
         "left_label": "Upper Anti-Diagonal Sample",
         "right_label": "Lower Anti-Diagonal Sample",
+        "left_display_label": "Upper Anti-Diagonal Sample (m^-1)",
+        "right_display_label": "Lower Anti-Diagonal Sample (m^-1)",
+        "left_display_value": upper_mu_normalized,
+        "right_display_value": lower_mu_normalized,
+        "display_unit": "m^-1",
+        "conversion_divisor": normalized_divisor,
+        "conversion_scale": normalized_scale,
         "left_mu": upper_mu,
-        "left_delta_mu": upper_delta_mu,
-        "left_mu_pm": f"{upper_mu:.3f} ± {upper_delta_mu:.3f}",
         "right_mu": lower_mu,
-        "right_delta_mu": lower_delta_mu,
-        "right_mu_pm": f"{lower_mu:.3f} ± {lower_delta_mu:.3f}",
-        "delta_mu": delta_mu,
+        "show_delta": False,
+        "show_steps": False,
+        "air_mean": air_mean,
+        "upper_pcoal_mean": upper_mean,
+        "lower_pcoal_mean": lower_mean,
+        "upper_mu_normalized": upper_mu_normalized,
+        "lower_mu_normalized": lower_mu_normalized,
+        "divider_mm": divider_mm,
+        "upper_abs_diff": upper_abs_diff,
+        "lower_abs_diff": lower_abs_diff,
     }
 
 

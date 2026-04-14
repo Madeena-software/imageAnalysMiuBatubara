@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import cv2
 import numpy as np
 import pytest
@@ -23,7 +21,7 @@ def test_circle_ratio_method_mu_formula(monkeypatch):
         for col in range(4):
             center = (30 + (col * 50), 30 + (row * 50))
             radius = 12
-            if row == col or (row + col) == 3:
+            if (row + col) == 3:
                 val = i_air
             else:
                 val = i_coal
@@ -32,8 +30,7 @@ def test_circle_ratio_method_mu_formula(monkeypatch):
 
     monkeypatch.setattr(circle_detection, "_load_and_validate_image", lambda _b: img)
     out = circle_detection.compare_diagonals(b"dummy", {"grid": grid})
-    # Ratio swapped to Air/Coal because Air pixel intensity is lower than Coal in this specific dataset.
-    expected_mu = -math.log(i_air / i_coal) / x_mm
+    expected_mu = (i_coal - i_air) / x_mm
     computed_mu = out["upper_stats"][0]["mu_coal"]
 
     assert_allclose(computed_mu, expected_mu, rtol=0, atol=1e-12)
@@ -52,7 +49,7 @@ def test_circle_ratio_method_normalizes_inverted_intensity(monkeypatch):
         for col in range(4):
             center = (30 + (col * 50), 30 + (row * 50))
             radius = 12
-            if row == col or (row + col) == 3:
+            if (row + col) == 3:
                 val = i_air
             else:
                 val = i_coal
@@ -64,7 +61,37 @@ def test_circle_ratio_method_normalizes_inverted_intensity(monkeypatch):
 
     computed_mu = out["upper_stats"][0]["mu_coal"]
     assert computed_mu > 0
-    assert_allclose(computed_mu, -math.log(i_air / i_coal) / x_mm, rtol=0, atol=1e-12)
+    assert_allclose(computed_mu, (i_coal - i_air) / x_mm, rtol=0, atol=1e-12)
+
+
+@pytest.mark.unit
+def test_circle_partition_counts_cover_full_upper_and_lower_regions(monkeypatch):
+    i_air = 4000.0
+    i_coal = 40000.0
+
+    img = np.zeros((220, 220), dtype=np.uint16)
+    grid = []
+    for row in range(4):
+        for col in range(4):
+            center = (30 + (col * 50), 30 + (row * 50))
+            radius = 12
+            if (row + col) == 3:
+                val = i_air
+            else:
+                val = i_coal
+            cv2.circle(img, center, radius, int(val), -1)
+            grid.append({"grid_pos": [row, col], "center": center, "radius": radius})
+
+    monkeypatch.setattr(circle_detection, "_load_and_validate_image", lambda _b: img)
+    out = circle_detection.compare_diagonals(b"dummy", {"grid": grid})
+
+    assert len(out["upper_stats"]) == 6
+    assert len(out["lower_stats"]) == 6
+    assert len(out["grid_stats"]) == 16
+
+    roi_areas = np.array([circle["roi_area"] for circle in out["grid_stats"]], dtype=float)
+    assert np.allclose(roi_areas, roi_areas[0], rtol=0, atol=1e-6)
+    assert_allclose(out["summary"]["roi_area_mean"], roi_areas[0], rtol=0, atol=1e-6)
 
 
 @pytest.mark.unit

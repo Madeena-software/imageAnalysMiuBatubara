@@ -396,6 +396,8 @@ def analyze_grid_histograms(file_bytes, grid_results):
                         "grid_pos": (row, col),
                         "position_id": grid_pos_id,
                         "center": item["center"],
+                        "radius": float(item["radius"]),
+                        "roi_area": float(np.pi * (float(item["radius"]) ** 2)),
                         "mean": mean_val,
                         "median": median_val,
                         "std": std_val,
@@ -444,7 +446,21 @@ def analyze_grid_histograms(file_bytes, grid_results):
         histogram_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
         plt.close()
 
-        return {"histogram_stats": histogram_stats, "histogram_image": histogram_image}
+        roi_areas = np.array([float(item["roi_area"]) for item in histogram_stats], dtype=float)
+        roi_area_mean = float(np.mean(roi_areas)) if len(roi_areas) else 0.0
+        roi_area_std = float(np.std(roi_areas)) if len(roi_areas) else 0.0
+        roi_area_min = float(np.min(roi_areas)) if len(roi_areas) else 0.0
+        roi_area_max = float(np.max(roi_areas)) if len(roi_areas) else 0.0
+
+        return {
+            "histogram_stats": histogram_stats,
+            "histogram_image": histogram_image,
+            "roi_area_mean": roi_area_mean,
+            "roi_area_std": roi_area_std,
+            "roi_area_min": roi_area_min,
+            "roi_area_max": roi_area_max,
+            "roi_area_equal": bool(np.allclose(roi_areas, roi_areas[0], rtol=0.0, atol=1e-6)) if len(roi_areas) else False,
+        }
 
     except Exception as e:
         if DEBUG:
@@ -528,9 +544,9 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 diagonal_items.append(item)
             elif (row + col) == anti_diagonal_sum:
                 anti_diagonal_items.append(item)
-            elif (row + col) == (anti_diagonal_sum - 1):
+            if (row + col) < anti_diagonal_sum:
                 upper_anti_diagonal_items.append(item)
-            elif (row + col) == (anti_diagonal_sum + 1):
+            elif (row + col) > anti_diagonal_sum:
                 lower_anti_diagonal_items.append(item)
 
         def _measure(items):
@@ -539,10 +555,14 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 mask = np.zeros_like(img_16bit, dtype=np.uint8)
                 cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
                 pixel_values = img_16bit[mask == 255]
+                roi_radius = float(item["radius"])
+                roi_area = float(np.pi * (roi_radius ** 2))
                 measured.append(
                     {
                         "grid_pos": item["grid_pos"],
                         "center": item["center"],
+                        "radius": roi_radius,
+                        "roi_area": roi_area,
                         "mean": float(np.mean(pixel_values)),
                         "median": float(np.median(pixel_values)),
                         "std": float(np.std(pixel_values)),
@@ -555,15 +575,16 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         lower_stats = _measure(lower_anti_diagonal_items)
 
         if len(diagonal_stats) == 0:
-            raise ValueError("Physics validation failed: no diagonal (air reference) circles were available.")
+            raise ValueError("Physics validation failed: no anti-diagonal reference circles were available.")
 
+        grid_stats = _measure(grid_data)
         anti_diagonal_stats = _measure(anti_diagonal_items)
         if len(anti_diagonal_stats) != grid_size:
             raise ValueError(
                 f"Circle validation failed: expected {grid_size} anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
             )
-        expected_coal_band_count = max(grid_size - 1, 0)
+        expected_coal_band_count = max((grid_size * (grid_size - 1)) // 2, 0)
         if len(upper_stats) != expected_coal_band_count:
             raise ValueError(
                 "Circle validation failed: expected strict upper anti-diagonal coal circle count "
@@ -582,6 +603,13 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         if anti_air_cv > air_cv_threshold:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
+        grid_areas = np.array([float(s["roi_area"]) for s in grid_stats], dtype=float)
+        if not np.allclose(grid_areas, grid_areas[0], rtol=0.0, atol=1e-6):
+            raise ValueError(
+                "Circle ROI validation failed: expected all 16 circle ROI areas to be equal. "
+                f"Found min={float(np.min(grid_areas)):.3f}, max={float(np.max(grid_areas)):.3f}."
+            )
+
         # P_air from anti-diagonal air circles.
         p_air = anti_air_mean
         # Coal thickness in millimeters.
@@ -592,7 +620,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         def _attach_mu(stats_list):
             for s in stats_list:
                 p_coal = float(s["mean"])
-                s["mu_coal"] = float((p_coal - p_air) / x_coal_mm)
+                s["mu_coal"] = float(abs(p_coal - p_air) / x_coal_mm)
             return stats_list
 
         upper_stats = _attach_mu(upper_stats)
@@ -667,6 +695,11 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             "x_coal_mm": x_coal_mm,
             "anti_air_cv": anti_air_cv,
             "air_cv_threshold": air_cv_threshold,
+            "roi_area": float(grid_areas[0]),
+            "roi_area_min": float(np.min(grid_areas)),
+            "roi_area_max": float(np.max(grid_areas)),
+            "roi_area_mean": float(np.mean(grid_areas)),
+            "roi_area_std": float(np.std(grid_areas)),
             "upper_intensity_avg": upper_intensity_mean,
             "lower_intensity_avg": lower_intensity_mean,
             "upper_mu_avg": upper_mu_mean,
@@ -684,6 +717,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         }
 
         return {
+            "grid_stats": grid_stats,
             "diagonal_stats": diagonal_stats,
             "upper_stats": upper_stats,
             "lower_stats": lower_stats,

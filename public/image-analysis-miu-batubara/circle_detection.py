@@ -564,10 +564,15 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 f"found {len(anti_diagonal_stats)}."
             )
         expected_coal_band_count = max(grid_size - 1, 0)
-        if len(upper_stats) != expected_coal_band_count or len(lower_stats) != expected_coal_band_count:
+        if len(upper_stats) != expected_coal_band_count:
             raise ValueError(
-                "Circle validation failed: expected strict upper/lower anti-diagonal coal circle counts "
-                f"of {expected_coal_band_count}, found upper={len(upper_stats)} and lower={len(lower_stats)}."
+                "Circle validation failed: expected strict upper anti-diagonal coal circle count "
+                f"of {expected_coal_band_count}, found {len(upper_stats)}."
+            )
+        if len(lower_stats) != expected_coal_band_count:
+            raise ValueError(
+                "Circle validation failed: expected strict lower anti-diagonal coal circle count "
+                f"of {expected_coal_band_count}, found {len(lower_stats)}."
             )
         anti_air_means = np.array([float(s["mean"]) for s in anti_diagonal_stats], dtype=float)
         anti_air_mean = float(np.mean(anti_air_means))

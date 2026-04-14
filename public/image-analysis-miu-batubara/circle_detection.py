@@ -662,6 +662,8 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             "lower_mu_avg": lower_mu_mean,
             "upper_mu_std": float(np.std(upper_mu)),
             "lower_mu_std": float(np.std(lower_mu)),
+            "upper_delta_mu": float(np.std(upper_mu)),
+            "lower_delta_mu": float(np.std(lower_mu)),
             # Compatibility keys for existing UI summary table.
             "lower_avg_mean": lower_intensity_mean,
             "upper_avg_mean": upper_intensity_mean,

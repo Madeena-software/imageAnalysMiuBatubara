@@ -103,7 +103,7 @@ def build_circle_attenuation_summary(diagonal_result):
     lower_mean = float(summary.get("lower_avg_mean", 0.0))
     divider_mm = float(summary.get("x_coal_mm", 6.0))
     normalized_divisor = 65535.0
-    normalized_scale = 1000.0
+    normalized_scale = 10.0
     upper_abs_diff = abs(upper_mean - air_mean)
     lower_abs_diff = abs(lower_mean - air_mean)
     upper_mu = float(summary.get("upper_mu_avg", 0.0))
@@ -114,11 +114,11 @@ def build_circle_attenuation_summary(diagonal_result):
         "title": "Attenuation (μ) Comparison",
         "left_label": "Upper Anti-Diagonal Sample",
         "right_label": "Lower Anti-Diagonal Sample",
-        "left_display_label": "Upper Anti-Diagonal Sample (m^-1)",
-        "right_display_label": "Lower Anti-Diagonal Sample (m^-1)",
+        "left_display_label": "Upper Anti-Diagonal Sample (cm^-1)",
+        "right_display_label": "Lower Anti-Diagonal Sample (cm^-1)",
         "left_display_value": upper_mu_normalized,
         "right_display_value": lower_mu_normalized,
-        "display_unit": "m^-1",
+        "display_unit": "cm^-1",
         "conversion_divisor": normalized_divisor,
         "conversion_scale": normalized_scale,
         "left_mu": upper_mu,

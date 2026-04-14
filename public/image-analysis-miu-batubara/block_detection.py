@@ -908,9 +908,9 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         if bottom_rel_diff > air_step_max_rel_diff:
             air_validation_warning = AIR_BLOCK_VALIDATION_ERROR
 
-        def _compute_mu_series(step_stats, air_values, coal_values):
-            step_order = np.array([float(s["x_coal_mm"]) for s in step_stats], dtype=float)
-            coal_thickness = 11.0 - step_order  # 10 -> 1 mm
+        def _compute_mu_series(air_step_stats, air_values, coal_values):
+            step_order = np.array([float(s["x_coal_mm"]) for s in air_step_stats], dtype=float)
+            coal_thickness = 11.0 - step_order  # step_order is 1 -> 10, so coal_thickness is 10 -> 1 mm
             p_air = np.asarray(air_values, dtype=float)
             p_coal = np.asarray(coal_values, dtype=float)
             delta_p = p_coal - p_air
@@ -921,6 +921,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
 
             return {
                 "x": coal_thickness,
+                "coal_thickness": coal_thickness,
                 "step_order": step_order,
                 "p_air": p_air,
                 "p_coal": p_coal,
@@ -941,7 +942,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             for idx, (step_value, coal_value, p_air_value, p_coal_value, delta_p_value, y_fit_value, residual_value, mu_point_value) in enumerate(
                 zip(
                     model["step_order"],
-                    model["x"],
+                    model["coal_thickness"],
                     model["p_air"],
                     model["p_coal"],
                     model["delta_p"],
@@ -992,8 +993,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         plt.close(fig1)
 
         fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(block2_model["x"], block2_model["mu_point"], marker="o", linewidth=2, label="Block 2 μ_point")
-        ax2.plot(block4_model["x"], block4_model["mu_point"], marker="s", linewidth=2, label="Block 4 μ_point")
+        ax2.plot(block2_model["coal_thickness"], block2_model["mu_point"], marker="o", linewidth=2, label="Block 2 μ_point")
+        ax2.plot(block4_model["coal_thickness"], block4_model["mu_point"], marker="s", linewidth=2, label="Block 4 μ_point")
         ax2.set_xlabel("Coal Thickness (mm)", fontweight="bold")
         ax2.set_ylabel("μ_point (1/mm)", fontweight="bold")
         ax2.set_title(
@@ -1045,7 +1046,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             },
         ]
 
-        ax3.scatter(block2_model["x"], block2_model["delta_p"], color="#4c78a8", marker="o", s=45, label="Block 2 data")
+        ax3.scatter(block2_model["coal_thickness"], block2_model["delta_p"], color="#4c78a8", marker="o", s=45, label="Block 2 data")
         ax3.plot(
             x_fit,
             block2_model["mu_coal"] * x_fit + block2_model["intercept"],
@@ -1054,7 +1055,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             linewidth=2,
             label=f"Block 2 fit (R²={block2_r2:.4f})",
         )
-        ax3.scatter(block4_model["x"], block4_model["delta_p"], color="#f58518", marker="s", s=45, label="Block 4 data")
+        ax3.scatter(block4_model["coal_thickness"], block4_model["delta_p"], color="#f58518", marker="s", s=45, label="Block 4 data")
         ax3.plot(
             x_fit,
             block4_model["mu_coal"] * x_fit + block4_model["intercept"],

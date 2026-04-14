@@ -495,7 +495,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             μ_coal = (P_coal - P_air) / x_coal
 
     Where:
-    - P_air is taken from the average of the four anti-diagonal air circles
+    - P_air is taken from anti_air_mean (mean pixel value of the anti-diagonal air circles)
     - x_coal = 6 mm (coal thickness only)
     - Acrylic attenuation cancels out because both paths include identical acrylic layers.
     """

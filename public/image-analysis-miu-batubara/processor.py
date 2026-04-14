@@ -164,17 +164,44 @@ def build_block_attenuation_summary(comparison_result):
     delta_mu_block2 = float(summary.get("delta_mu_block2", 0.0))
     delta_mu_block4 = float(summary.get("delta_mu_block4", 0.0))
     delta_mu = abs(mu_block2 - mu_block4)
+    # Apply conversion for display: 16-bit normalization then scale to per-cm
+    normalized_divisor = 65535.0
+    normalized_scale = 10.0
+    left_mu_normalized = float((mu_block2 / normalized_divisor) * normalized_scale)
+    right_mu_normalized = float((mu_block4 / normalized_divisor) * normalized_scale)
+    left_mu_normalized_std = float((delta_mu_block2 / normalized_divisor) * normalized_scale)
+    right_mu_normalized_std = float((delta_mu_block4 / normalized_divisor) * normalized_scale)
+
+    # Preserve original pm string if present
+    left_mu_pm_raw = summary.get("mu_pm_block2", f"{mu_block2:.3f} ± {delta_mu_block2:.3f}")
+    right_mu_pm_raw = summary.get("mu_pm_block4", f"{mu_block4:.3f} ± {delta_mu_block4:.3f}")
+
     return {
         "title": "Attenuation (μ) Comparison",
         "left_label": "Block 2 (Coal)",
         "right_label": "Block 4 (Coal)",
         "left_mu": mu_block2,
         "left_delta_mu": delta_mu_block2,
-        "left_mu_pm": summary.get("mu_pm_block2", f"{mu_block2:.3f} ± {delta_mu_block2:.3f}"),
+        # Expose normalized pm as the primary pm used by the UI (cm^-1)
+        "left_mu_pm": f"{left_mu_normalized:.3f} ± {left_mu_normalized_std:.3f}",
+        "left_mu_pm_raw": left_mu_pm_raw,
         "right_mu": mu_block4,
         "right_delta_mu": delta_mu_block4,
-        "right_mu_pm": summary.get("mu_pm_block4", f"{mu_block4:.3f} ± {delta_mu_block4:.3f}"),
+        "right_mu_pm": f"{right_mu_normalized:.3f} ± {right_mu_normalized_std:.3f}",
+        "right_mu_pm_raw": right_mu_pm_raw,
         "delta_mu": delta_mu,
+        # Display-friendly normalized values (converted to cm^-1)
+        "display_unit": "cm^-1",
+        "conversion_divisor": normalized_divisor,
+        "conversion_scale": normalized_scale,
+        "left_display_label": "Block 2 (Coal) (cm^-1)",
+        "right_display_label": "Block 4 (Coal) (cm^-1)",
+        "left_display_value": left_mu_normalized,
+        "right_display_value": right_mu_normalized,
+        "left_mu_pm_normalized": f"{left_mu_normalized:.3f} ± {left_mu_normalized_std:.3f}",
+        "right_mu_pm_normalized": f"{right_mu_normalized:.3f} ± {right_mu_normalized_std:.3f}",
+        "left_mu_normalized": left_mu_normalized,
+        "right_mu_normalized": right_mu_normalized,
     }
 
 

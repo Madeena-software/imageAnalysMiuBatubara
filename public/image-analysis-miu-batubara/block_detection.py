@@ -917,7 +917,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             fit_coeffs, fit_cov = np.polyfit(coal_thickness, delta_p, 1, cov=True)
             mu_coal = float(fit_coeffs[0])
             intercept = float(fit_coeffs[1])
-            mu_coal_stderr = float(np.sqrt(max(float(fit_cov[0, 0]), 0.0)))
+            mu_coal_stderr = float(np.sqrt(np.maximum(fit_cov[0, 0], 0.0)))
             y_fit = (mu_coal * coal_thickness) + intercept
             residual = delta_p - y_fit
             y_n = np.divide(delta_p, coal_thickness, out=np.zeros_like(delta_p), where=coal_thickness > eps)

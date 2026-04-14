@@ -1217,12 +1217,18 @@
             if not summary_payload:
                 container.innerHTML = ''
                 return
+            def positive_pm(value, pm_key):
+                raw_pm = summary_payload.get(pm_key, "")
+                if raw_pm:
+                    return str(raw_pm).replace("-", "")
+                return f"{abs(value):.3f}"
+
             show_delta = summary_payload.get("show_delta", True)
             left_value = summary_payload.get("left_display_value", summary_payload.get("left_mu", 0.0))
             right_value = summary_payload.get("right_display_value", summary_payload.get("right_mu", 0.0))
             display_unit = summary_payload.get("display_unit", "")
-            left_display = summary_payload.get("left_mu_pm", f"{left_value:.3f}") if show_delta else f"{left_value:.3f}"
-            right_display = summary_payload.get("right_mu_pm", f"{right_value:.3f}") if show_delta else f"{right_value:.3f}"
+            left_display = positive_pm(left_value, "left_mu_pm") if show_delta else f"{abs(left_value):.3f}"
+            right_display = positive_pm(right_value, "right_mu_pm") if show_delta else f"{abs(right_value):.3f}"
             if display_unit and not show_delta:
                 left_display = f"{left_display} {display_unit}"
                 right_display = f"{right_display} {display_unit}"
@@ -1249,19 +1255,19 @@
                             <div class="attenuation-comparison__step-card-title">Upper Anti-Diagonal Sample</div>
                             <div class="attenuation-comparison__formula-line">mean Pcoal = {upper_mean:.1f}</div>
                             <div class="attenuation-comparison__formula-line">|Pcoal - Pair| = |{upper_mean:.1f} - {air_mean:.1f}| = {upper_abs_diff:.1f}</div>
-                            <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {upper_abs_diff:.1f} / {divider_mm:.0f} = {upper_mu:.5f}</div>
-                            <div class="attenuation-comparison__formula-line">Normalize μ to m^-1 = ({upper_mu:.5f} / {conversion_divisor:.0f}) x {conversion_scale:.0f} = {upper_mu_normalized:.3f}</div>
-                            <div class="attenuation-comparison__formula-result">μ_upper = {upper_mu:.5f}</div>
-                            <div class="attenuation-comparison__formula-result">Upper sample = {upper_mu_normalized:.3f} m^-1</div>
+                            <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {upper_abs_diff:.1f} / {divider_mm:.0f} = {abs(upper_mu):.5f}</div>
+                            <div class="attenuation-comparison__formula-line">Normalize μ to m^-1 = ({abs(upper_mu):.5f} / {conversion_divisor:.0f}) x {conversion_scale:.0f} = {abs(upper_mu_normalized):.3f}</div>
+                            <div class="attenuation-comparison__formula-result">μ_upper = {abs(upper_mu):.5f}</div>
+                            <div class="attenuation-comparison__formula-result">Upper sample = {abs(upper_mu_normalized):.3f} m^-1</div>
                         </div>
                         <div class="attenuation-comparison__step-card">
                             <div class="attenuation-comparison__step-card-title">Lower Anti-Diagonal Sample</div>
                             <div class="attenuation-comparison__formula-line">mean Pcoal = {lower_mean:.1f}</div>
                             <div class="attenuation-comparison__formula-line">|Pcoal - Pair| = |{lower_mean:.1f} - {air_mean:.1f}| = {lower_abs_diff:.1f}</div>
-                            <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {lower_abs_diff:.1f} / {divider_mm:.0f} = {lower_mu:.5f}</div>
-                            <div class="attenuation-comparison__formula-line">Normalize μ to m^-1 = ({lower_mu:.5f} / {conversion_divisor:.0f}) x {conversion_scale:.0f} = {lower_mu_normalized:.3f}</div>
-                            <div class="attenuation-comparison__formula-result">μ_lower = {lower_mu:.5f}</div>
-                            <div class="attenuation-comparison__formula-result">Lower sample = {lower_mu_normalized:.3f} m^-1</div>
+                            <div class="attenuation-comparison__formula-line">Divide by {divider_mm:.0f} mm = {lower_abs_diff:.1f} / {divider_mm:.0f} = {abs(lower_mu):.5f}</div>
+                            <div class="attenuation-comparison__formula-line">Normalize μ to m^-1 = ({abs(lower_mu):.5f} / {conversion_divisor:.0f}) x {conversion_scale:.0f} = {abs(lower_mu_normalized):.3f}</div>
+                            <div class="attenuation-comparison__formula-result">μ_lower = {abs(lower_mu):.5f}</div>
+                            <div class="attenuation-comparison__formula-result">Lower sample = {abs(lower_mu_normalized):.3f} m^-1</div>
                         </div>
                     </div>
                 </div>

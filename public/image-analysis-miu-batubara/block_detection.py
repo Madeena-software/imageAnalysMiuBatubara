@@ -914,13 +914,13 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             p_air = np.asarray(air_values, dtype=float)
             p_coal = np.asarray(coal_values, dtype=float)
             delta_p = p_coal - p_air
-            fit_coeffs, fit_cov = np.polyfit(coal_thickness, delta_p, 1, cov=True)
+            y_n = np.divide(delta_p, coal_thickness, out=np.zeros_like(delta_p), where=coal_thickness > eps)
+            fit_coeffs, fit_cov = np.polyfit(coal_thickness, y_n, 1, cov=True)
             mu_coal = float(fit_coeffs[0])
             intercept = float(fit_coeffs[1])
             mu_coal_stderr = float(np.sqrt(np.maximum(fit_cov[0, 0], 0.0)))
             y_fit = (mu_coal * coal_thickness) + intercept
-            residual = delta_p - y_fit
-            y_n = np.divide(delta_p, coal_thickness, out=np.zeros_like(delta_p), where=coal_thickness > eps)
+            residual = y_n - y_fit
 
             return {
                 "x": coal_thickness,
@@ -939,6 +939,11 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
                 "intercept": intercept,
             }
 
+        # Use the per-step mean of Block 1 and Block 3 as a common air reference
+        # and subtract that mean from each coal measurement (P_coal).
+        combined_air = (air1 + air3) / 2.0
+        # block2_model = _compute_mu_series(block1_stats, combined_air, coal2)
+        # block4_model = _compute_mu_series(block1_stats, combined_air, coal4)
         block2_model = _compute_mu_series(block1_stats, air1, coal2)
         block4_model = _compute_mu_series(block3_stats, air3, coal4)
 
@@ -982,11 +987,22 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
         coal2_plot = coal2[sort_idx]
         air3_plot = air3[sort_idx]
         coal4_plot = coal4[sort_idx]
+        combined_air_plot = combined_air[sort_idx]
+
+        # Fit a simple linear model to the combined air curve so we can show
+        # the equation in the legend (fallback to a plain label on failure).
+        try:
+            ca_coeffs = np.polyfit(coal_thickness_axis, combined_air_plot, 1)
+            ca_slope, ca_intercept = float(ca_coeffs[0]), float(ca_coeffs[1])
+            ca_eq_label = f"Mean(Block1,Block3): y = {ca_slope:.2f}x + {ca_intercept:.1f}"
+        except Exception:
+            ca_eq_label = "Mean(Block1,Block3)"
 
         fig1, ax1 = plt.subplots(figsize=(12, 6))
         ax1.plot(coal_thickness_axis, air1_plot, marker="^", linewidth=1.5, linestyle="--", label="Block 1 (Air)")
         ax1.plot(coal_thickness_axis, coal2_plot, marker="o", linewidth=2, label="Block 2 (Coal)")
         ax1.plot(coal_thickness_axis, air3_plot, marker="v", linewidth=1.5, linestyle="--", label="Block 3 (Air)")
+        ax1.plot(coal_thickness_axis, combined_air_plot, marker="x", linewidth=1.5, linestyle="-.", color="#2ca02c", label=ca_eq_label)
         ax1.plot(coal_thickness_axis, coal4_plot, marker="s", linewidth=2, label="Block 4 (Coal)")
         ax1.set_xlabel("Coal Thickness (mm)", fontweight="bold")
         ax1.set_ylabel("Pixel Value (P)", fontweight="bold")
@@ -1038,8 +1054,8 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
 
         block2_y_fit = block2_model["y_fit"]
         block4_y_fit = block4_model["y_fit"]
-        block2_r2 = _r_squared(block2_model["delta_p"], block2_y_fit)
-        block4_r2 = _r_squared(block4_model["delta_p"], block4_y_fit)
+        block2_r2 = _r_squared(block2_model["y_n"], block2_y_fit)
+        block4_r2 = _r_squared(block4_model["y_n"], block4_y_fit)
 
         attenuation_fit_rows = [
             {
@@ -1062,27 +1078,33 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             },
         ]
 
-        ax3.scatter(block2_model["coal_thickness"], block2_model["delta_p"], color="#4c78a8", marker="o", s=45, label="Block 2 data")
+        ax3.scatter(block2_model["coal_thickness"], block2_model["y_n"], color="#4c78a8", marker="o", s=45, label="Block 2 data")
         ax3.plot(
             x_fit,
             block2_model["mu_coal"] * x_fit + block2_model["intercept"],
             color="#4c78a8",
             linestyle="--",
             linewidth=2,
-            label=f"Block 2 fit (μ ± Δμ: {block2_model['mu_coal_pm']}, R²={block2_r2:.4f})",
+            label=(
+                f"Block 2 fit: y = {block2_model['slope']:.4f}x + {block2_model['intercept']:.4f} "
+                f"(μ ± Δμ: {block2_model['mu_coal_pm']}, R²={block2_r2:.4f})"
+            ),
         )
-        ax3.scatter(block4_model["coal_thickness"], block4_model["delta_p"], color="#f58518", marker="s", s=45, label="Block 4 data")
+        ax3.scatter(block4_model["coal_thickness"], block4_model["y_n"], color="#f58518", marker="s", s=45, label="Block 4 data")
         ax3.plot(
             x_fit,
             block4_model["mu_coal"] * x_fit + block4_model["intercept"],
             color="#f58518",
             linestyle="--",
             linewidth=2,
-            label=f"Block 4 fit (μ ± Δμ: {block4_model['mu_coal_pm']}, R²={block4_r2:.4f})",
+            label=(
+                f"Block 4 fit: y = {block4_model['slope']:.4f}x + {block4_model['intercept']:.4f} "
+                f"(μ ± Δμ: {block4_model['mu_coal_pm']}, R²={block4_r2:.4f})"
+            ),
         )
         ax3.set_xlabel("Coal Thickness (mm)", fontweight="bold")
-        ax3.set_ylabel("ΔP", fontweight="bold")
-        ax3.set_title("Differential Linear Regression: ΔP = μ_coal·x + c", fontweight="bold")
+        ax3.set_ylabel("Y_n = ΔP / x", fontweight="bold")
+        ax3.set_title("Differential Linear Regression: Y_n = μ_coal·x + c", fontweight="bold")
         ax3.set_xticks(list(range(1, 11)))
         ax3.set_xlim(0, 11)
         ax3.grid(True, alpha=0.3)

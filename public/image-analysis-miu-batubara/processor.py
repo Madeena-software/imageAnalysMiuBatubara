@@ -120,10 +120,11 @@ def build_circle_attenuation_summary(diagonal_result):
         "right_label": "Lower Anti-Diagonal Sample",
         "left_display_label": "Upper Anti-Diagonal Sample (cm^-1)",
         "right_display_label": "Lower Anti-Diagonal Sample (cm^-1)",
-        "left_display_value": upper_mu_normalized,
-        "right_display_value": lower_mu_normalized,
-        "left_mu_pm": f"{upper_mu_normalized:.3f} ± {upper_mu_normalized_std:.3f}",
-        "right_mu_pm": f"{lower_mu_normalized:.3f} ± {lower_mu_normalized_std:.3f}",
+        # Expose magnitudes for UI-facing display values
+        "left_display_value": abs(upper_mu_normalized),
+        "right_display_value": abs(lower_mu_normalized),
+        "left_mu_pm": f"{abs(upper_mu_normalized):.3f} ± {upper_mu_normalized_std:.3f}",
+        "right_mu_pm": f"{abs(lower_mu_normalized):.3f} ± {lower_mu_normalized_std:.3f}",
         "display_unit": "cm^-1",
         "conversion_divisor": normalized_divisor,
         "conversion_scale": normalized_scale,
@@ -172,9 +173,9 @@ def build_block_attenuation_summary(comparison_result):
     left_mu_normalized_std = float((delta_mu_block2 / normalized_divisor) * normalized_scale)
     right_mu_normalized_std = float((delta_mu_block4 / normalized_divisor) * normalized_scale)
 
-    # Preserve original pm string if present
-    left_mu_pm_raw = summary.get("mu_pm_block2", f"{mu_block2:.3f} ± {delta_mu_block2:.3f}")
-    right_mu_pm_raw = summary.get("mu_pm_block4", f"{mu_block4:.3f} ± {delta_mu_block4:.3f}")
+    # Preserve original pm string if present, but display magnitudes (abs)
+    left_mu_pm_raw = summary.get("mu_pm_block2", f"{abs(mu_block2):.3f} ± {delta_mu_block2:.3f}")
+    right_mu_pm_raw = summary.get("mu_pm_block4", f"{abs(mu_block4):.3f} ± {delta_mu_block4:.3f}")
 
     return {
         "title": "Attenuation (μ) Comparison",
@@ -183,11 +184,12 @@ def build_block_attenuation_summary(comparison_result):
         "left_mu": mu_block2,
         "left_delta_mu": delta_mu_block2,
         # Expose normalized pm as the primary pm used by the UI (cm^-1)
-        "left_mu_pm": f"{left_mu_normalized:.3f} ± {left_mu_normalized_std:.3f}",
+        # Display magnitude (absolute) for user-facing values
+        "left_mu_pm": f"{abs(left_mu_normalized):.3f} ± {left_mu_normalized_std:.3f}",
         "left_mu_pm_raw": left_mu_pm_raw,
         "right_mu": mu_block4,
         "right_delta_mu": delta_mu_block4,
-        "right_mu_pm": f"{right_mu_normalized:.3f} ± {right_mu_normalized_std:.3f}",
+        "right_mu_pm": f"{abs(right_mu_normalized):.3f} ± {right_mu_normalized_std:.3f}",
         "right_mu_pm_raw": right_mu_pm_raw,
         "delta_mu": delta_mu,
         # Display-friendly normalized values (converted to cm^-1)
@@ -196,10 +198,10 @@ def build_block_attenuation_summary(comparison_result):
         "conversion_scale": normalized_scale,
         "left_display_label": "Block 2 (Coal) (cm^-1)",
         "right_display_label": "Block 4 (Coal) (cm^-1)",
-        "left_display_value": left_mu_normalized,
-        "right_display_value": right_mu_normalized,
-        "left_mu_pm_normalized": f"{left_mu_normalized:.3f} ± {left_mu_normalized_std:.3f}",
-        "right_mu_pm_normalized": f"{right_mu_normalized:.3f} ± {right_mu_normalized_std:.3f}",
+        "left_display_value": abs(left_mu_normalized),
+        "right_display_value": abs(right_mu_normalized),
+        "left_mu_pm_normalized": f"{abs(left_mu_normalized):.3f} ± {left_mu_normalized_std:.3f}",
+        "right_mu_pm_normalized": f"{abs(right_mu_normalized):.3f} ± {right_mu_normalized_std:.3f}",
         "left_mu_normalized": left_mu_normalized,
         "right_mu_normalized": right_mu_normalized,
     }

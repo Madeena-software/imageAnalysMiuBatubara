@@ -959,20 +959,6 @@
                         </div>
                     </details>
 
-                    <details class="collapsible-panel stats-panel" id="circleIntensityPlotDetails">
-                        <summary>📉 Intensity (I) Comparison Plot</summary>
-                        <div class="final-plots-section" style="margin-top: 0;">
-                            <div id="circleFinalIntensityPlot"></div>
-                        </div>
-                    </details>
-
-                    <details class="collapsible-panel stats-panel" id="circleMuPlotDetails">
-                        <summary>📉 μ (Attenuation Coefficient) Comparison Plot</summary>
-                        <div class="final-plots-section" style="margin-top: 0;">
-                            <div id="circleFinalMuPlot"></div>
-                        </div>
-                    </details>
-
                     <details class="collapsible-panel stats-panel" id="circleSummaryDetails">
                         <summary>⚖️ Diagonal Comparison Statistics (Table)</summary>
                         <div class="stats-section" style="margin-top: 0;">
@@ -1526,8 +1512,6 @@
             document.getElementById('circleInvalidRoiSection').style.display = 'none'
             document.getElementById('circleInvalidRoiImage').innerHTML = ''
             document.getElementById('circleInvalidRoiHint').textContent = ''
-            document.getElementById('circleFinalIntensityPlot').innerHTML = ''
-            document.getElementById('circleFinalMuPlot').innerHTML = ''
             document.getElementById('diagonalSummary').innerHTML = ''
             document.getElementById('histogramImage').innerHTML = ''
             document.getElementById('gridImage').innerHTML = ''
@@ -2228,31 +2212,6 @@
 
         def display_diagonal_results(diagonal_result, histogram_result=None):
             """Display diagonal comparison results"""
-            intensity_div = document.getElementById('circleFinalIntensityPlot')
-            if 'intensity_plot_image' in diagonal_result:
-                render_plot_image(
-                    intensity_div,
-                    "intensityPlotImage",
-                    diagonal_result["intensity_plot_image"],
-                    "Circle Intensity Comparison",
-                )
-
-            mu_div = document.getElementById('circleFinalMuPlot')
-            if 'mu_plot_image' in diagonal_result:
-                render_plot_image(
-                    mu_div,
-                    "muPlotImage",
-                    diagonal_result["mu_plot_image"],
-                    "Circle Mu Comparison",
-                )
-            elif 'comparison_image' in diagonal_result:
-                render_plot_image(
-                    mu_div,
-                    "muPlotImage",
-                    diagonal_result["comparison_image"],
-                    "Circle Mu Comparison",
-                )
-            
             summary = build_circle_histogram_summary(diagonal_result, histogram_result)
             summary_div = document.getElementById('diagonalSummary')
             
@@ -2710,18 +2669,6 @@
             pdf.setTextColor(51, 51, 51);
             pdf.text('Diagonal Comparison Statistics', margin, yPos);
             yPos += 5;
-            
-            const circleIntensityImg = getImageDataFromElement('circleFinalIntensityPlot');
-            if (circleIntensityImg) {
-                const result = await addImageToPdf(pdf, circleIntensityImg, margin, yPos, contentWidth, 80);
-                yPos += result.height + 8;
-            }
-
-            const circleMuImg = getImageDataFromElement('circleFinalMuPlot');
-            if (circleMuImg) {
-                const result = await addImageToPdf(pdf, circleMuImg, margin, yPos, contentWidth, 80);
-                yPos += result.height + 8;
-            }
 
             // Diagonal Summary Statistics Table
             const diagonalSummaryTable = getTableDataFromElement('diagonalSummary');
@@ -2952,9 +2899,7 @@
                 { id: 'detectionImage', name: 'circle_detection.png' },
                 { id: 'maskImage', name: 'circle_mask.png' },
                 { id: 'gridImage', name: 'circle_grid.png' },
-                { id: 'histogramImage', name: 'circle_histogram.png' },
-                { id: 'circleFinalIntensityPlot', name: 'circle_intensity_comparison.png' },
-                { id: 'circleFinalMuPlot', name: 'circle_mu_comparison.png' }
+                { id: 'histogramImage', name: 'circle_histogram.png' }
             ];
             
             images.forEach((item, index) => {

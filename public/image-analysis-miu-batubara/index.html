@@ -1797,15 +1797,14 @@
 
                 if matrix_explanation_div:
                     matrix_explanation_div.innerHTML = '''
-                        <strong>How the attenuation value is built:</strong>
+                        <strong>How the differential attenuation value is built:</strong>
                         <ul style="margin: 10px 0 0 20px; line-height: 1.7;">
-                            <li><strong>I0</strong> is a single constant from the bottom step of Block 1 and Block 3.</li>
-                            <li><strong>I</strong> is the measured coal intensity from Block 2 or Block 4.</li>
-                            <li><strong>Acrylic thickness</strong> increases from 4 to 13 while <strong>coal thickness</strong> decreases from 10 to 1.</li>
-                            <li><strong>y = -ln(I0 / I)</strong> is the attenuation signal used for the matrix fit.</li>
-                            <li><strong>y_fit</strong> is the value predicted by the acrylic + coal matrix model.</li>
-                            <li><strong>Residual</strong> shows the mismatch between measured and fitted attenuation.</li>
-                            <li><strong>μ acrylic</strong> and <strong>μ coal</strong> come from the matrix least-squares solution.</li>
+                            <li><strong>P_air</strong> is measured from Block 1 or Block 3 at the same spatial step.</li>
+                            <li><strong>P_coal</strong> is measured from Block 2 or Block 4 at that same step.</li>
+                            <li><strong>ΔP = P_coal − P_air</strong> cancels shared acrylic effects by strict pairing.</li>
+                            <li><strong>Linear model:</strong> ΔP = μ<sub>coal</sub> · x<sub>coal</sub> + c, with x<sub>coal</sub> from 10 → 1 mm.</li>
+                            <li><strong>y_fit</strong> is the fitted ΔP value from 1D linear regression.</li>
+                            <li><strong>Residual</strong> is ΔP − y_fit and <strong>μ_point</strong> is ΔP / x<sub>coal</sub>.</li>
                         </ul>
                     '''
 
@@ -1815,16 +1814,14 @@
                         <table class="stats-table" style="min-width: 1100px;">
                             <thead>
                                 <tr>
-                                    <th>Sample</th>
                                     <th>Step</th>
-                                    <th>Acrylic (mm)</th>
                                     <th>Coal (mm)</th>
-                                    <th>I0</th>
-                                    <th>I</th>
-                                    <th>I0 / I</th>
-                                    <th>y = -ln(I0 / I)</th>
-                                    <th>y Fit</th>
+                                    <th>P_air</th>
+                                    <th>P_coal</th>
+                                    <th>ΔP</th>
+                                    <th>y_fit</th>
                                     <th>Residual</th>
+                                    <th>μ_point</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1832,16 +1829,14 @@
                     for row in matrix_rows:
                         matrix_html += f'''
                                 <tr>
-                                    <td>{row.get('sample', '')}</td>
                                     <td>{row.get('step', '')}</td>
-                                    <td>{fmt(row.get('acrylic_mm', ''), 1)}</td>
                                     <td>{fmt(row.get('coal_mm', ''), 1)}</td>
-                                    <td>{fmt(row.get('i0', ''), 1)}</td>
-                                    <td>{fmt(row.get('intensity', ''), 1)}</td>
-                                    <td>{fmt(row.get('ratio', ''), 3)}</td>
-                                    <td>{fmt(row.get('y', ''), 5)}</td>
+                                    <td>{fmt(row.get('p_air', ''), 1)}</td>
+                                    <td>{fmt(row.get('p_coal', ''), 1)}</td>
+                                    <td>{fmt(row.get('delta_p', ''), 5)}</td>
                                     <td>{fmt(row.get('y_fit', ''), 5)}</td>
                                     <td>{fmt(row.get('residual', ''), 5)}</td>
+                                    <td>{fmt(row.get('mu_point', ''), 5)}</td>
                                 </tr>
                         '''
                     matrix_html += '''
@@ -1860,7 +1855,6 @@
                             <thead>
                                 <tr>
                                     <th>Sample</th>
-                                    <th>μ Acrylic</th>
                                     <th>Slope</th>
                                     <th>Intercept</th>
                                     <th>μ Coal</th>
@@ -1873,7 +1867,6 @@
                         fit_html += f'''
                                 <tr>
                                     <td><strong>{row.get('sample', '')}</strong></td>
-                                    <td>{fmt(row.get('mu_acrylic', ''), 5)}</td>
                                     <td>{fmt(row.get('slope', ''), 5)}</td>
                                     <td>{fmt(row.get('intercept', ''), 5)}</td>
                                     <td>{fmt(row.get('mu_coal', ''), 5)}</td>

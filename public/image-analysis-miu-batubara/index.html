@@ -1797,14 +1797,15 @@
 
                 if matrix_explanation_div:
                     matrix_explanation_div.innerHTML = '''
-                        <strong>How the differential attenuation value is built:</strong>
+                        <strong>How the FFC differential attenuation value is built:</strong>
                         <ul style="margin: 10px 0 0 20px; line-height: 1.7;">
+                            <li>The grabber already applies Flat-Field Correction (FFC) and logarithmic conversion, so pixel values are direct log-attenuation (<strong>P</strong>).</li>
                             <li><strong>P_air</strong> is measured from Block 1 or Block 3 at the same spatial step.</li>
                             <li><strong>P_coal</strong> is measured from Block 2 or Block 4 at that same step.</li>
-                            <li><strong>ΔP = P_coal − P_air</strong> cancels shared acrylic effects by strict pairing.</li>
-                            <li><strong>Y<sub>n</sub> (point-wise attenuation):</strong> Y<sub>n</sub> = ΔP / x<sub>coal</sub>.</li>
-                            <li><strong>Linear model:</strong> ΔP = μ<sub>coal</sub> · x<sub>coal</sub> + c, with x<sub>coal</sub> from 10 → 1 mm.</li>
-                            <li><strong>Y_fit</strong> is the fitted ΔP value from 1D linear regression, and <strong>Residual</strong> is ΔP − Y_fit.</li>
+                            <li><strong>ΔP = P_coal − P_air</strong> cancels shared acrylic effects by strict block pairing (1↔2, 3↔4).</li>
+                            <li><strong>Y<sub>n</sub> (Point-wise μ):</strong> Y<sub>n</sub> = ΔP / x<sub>coal</sub>, with x<sub>coal</sub> from 10 → 1 mm.</li>
+                            <li><strong>1D linear regression:</strong> fit ΔP versus x<sub>coal</sub> using a straight line; the slope is μ<sub>coal</sub> and slope standard error is Δμ.</li>
+                            <li><strong>Y_fit</strong> is the fitted response from that line, and <strong>Residual</strong> is ΔP − Y_fit.</li>
                         </ul>
                     '''
 
@@ -1819,7 +1820,7 @@
                                     <th>P_air</th>
                                     <th>P_coal</th>
                                     <th>ΔP</th>
-                                    <th>Y_n (point-wise attenuation)</th>
+                                    <th>Y_n (Point-wise μ)</th>
                                     <th>Y_fit</th>
                                     <th>Residual</th>
                                 </tr>

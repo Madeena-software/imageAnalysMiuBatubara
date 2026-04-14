@@ -515,8 +515,8 @@ def compare_diagonals(file_bytes, grid_results, params=None):
 
         diagonal_items = []
         anti_diagonal_items = []
-        upper_items = []
-        lower_items = []
+        upper_anti_diagonal_items = []
+        lower_anti_diagonal_items = []
         max_row = max(item["grid_pos"][0] for item in grid_data)
         max_col = max(item["grid_pos"][1] for item in grid_data)
         grid_size = max(max_row, max_col) + 1
@@ -528,10 +528,10 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 diagonal_items.append(item)
             elif (row + col) == anti_diagonal_sum:
                 anti_diagonal_items.append(item)
-            elif (row + col) < anti_diagonal_sum:
-                upper_items.append(item)
-            else:
-                lower_items.append(item)
+            elif (row + col) == (anti_diagonal_sum - 1):
+                upper_anti_diagonal_items.append(item)
+            elif (row + col) == (anti_diagonal_sum + 1):
+                lower_anti_diagonal_items.append(item)
 
         def _measure(items):
             measured = []
@@ -551,8 +551,8 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             return measured
 
         diagonal_stats = _measure(diagonal_items)
-        upper_stats = _measure(upper_items)
-        lower_stats = _measure(lower_items)
+        upper_stats = _measure(upper_anti_diagonal_items)
+        lower_stats = _measure(lower_anti_diagonal_items)
 
         if len(diagonal_stats) == 0:
             raise ValueError("Physics validation failed: no diagonal (air reference) circles were available.")
@@ -562,6 +562,17 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             raise ValueError(
                 f"Circle validation failed: expected {grid_size} anti-diagonal air reference circles, "
                 f"found {len(anti_diagonal_stats)}."
+            )
+        expected_coal_band_count = max(grid_size - 1, 0)
+        if len(upper_stats) != expected_coal_band_count:
+            raise ValueError(
+                "Circle validation failed: expected strict upper anti-diagonal coal circle count "
+                f"of {expected_coal_band_count}, found {len(upper_stats)}."
+            )
+        if len(lower_stats) != expected_coal_band_count:
+            raise ValueError(
+                "Circle validation failed: expected strict lower anti-diagonal coal circle count "
+                f"of {expected_coal_band_count}, found {len(lower_stats)}."
             )
         anti_air_means = np.array([float(s["mean"]) for s in anti_diagonal_stats], dtype=float)
         anti_air_mean = float(np.mean(anti_air_means))
@@ -606,11 +617,11 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         upper_mu_mean = float(np.mean(upper_mu))
         lower_mu_mean = float(np.mean(lower_mu))
 
-        # Plot 1: Bar graph of mean intensity (upper anti-diagonal sample vs lower anti-diagonal sample)
+        # Plot 1: Bar graph of mean intensity (upper anti-diagonal coal circles vs lower anti-diagonal coal circles)
         fig1, ax1 = plt.subplots(figsize=(12, 6))
         labels = [
-            f"Upper Anti-Diagonal ({upper_count})",
-            f"Lower Anti-Diagonal ({lower_count})",
+            f"Upper Anti-Diagonal Coal ({upper_count})",
+            f"Lower Anti-Diagonal Coal ({lower_count})",
         ]
         x = np.arange(len(labels))
         intensity_vals = [upper_intensity_mean, lower_intensity_mean]
@@ -621,7 +632,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             ax1.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.1f}", ha="center", va="bottom", fontsize=10)
         ax1.set_xlabel("Sample Group", fontweight="bold")
         ax1.set_ylabel("Pixel Value (P)", fontweight="bold")
-        ax1.set_title("Mean Pixel Value (P) Comparison (Upper vs Lower Anti-Diagonal Samples)", fontweight="bold")
+        ax1.set_title("Mean Pixel Value (P) Comparison (Upper vs Lower Anti-Diagonal Coal Bands)", fontweight="bold")
         ax1.grid(True, alpha=0.3)
         plt.tight_layout()
 
@@ -631,7 +642,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
         intensity_plot_image = base64.b64encode(buf1.getvalue()).decode("utf-8")
         plt.close(fig1)
 
-        # Plot 2: Bar graph of mean μ (upper anti-diagonal sample vs lower anti-diagonal sample)
+        # Plot 2: Bar graph of mean μ (upper anti-diagonal coal circles vs lower anti-diagonal coal circles)
         fig2, ax2 = plt.subplots(figsize=(12, 6))
         mu_vals = [upper_mu_mean, lower_mu_mean]
         bars2 = ax2.bar(x, mu_vals, color=["#54a24b", "#e45756"], width=0.6)
@@ -641,7 +652,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             ax2.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.5f}", ha="center", va="bottom", fontsize=10)
         ax2.set_xlabel("Sample Group", fontweight="bold")
         ax2.set_ylabel("μ (1/mm)", fontweight="bold")
-        ax2.set_title("Mean μ Comparison (Upper vs Lower Anti-Diagonal Samples)", fontweight="bold")
+        ax2.set_title("Mean μ Comparison (Upper vs Lower Anti-Diagonal Coal Bands)", fontweight="bold")
         ax2.grid(True, alpha=0.3)
         plt.tight_layout()
 

@@ -441,7 +441,7 @@ def process_blocks(file_bytes, params):
         h, w = img_16bit.shape[:2]
         for block in all_blocks:
             cx, cy = block["center"]
-            if cx < 0 or cy < 0 or cx >= w or cy >= h:
+            if block["type"] == "detected" and (cx < 0 or cy < 0 or cx >= w or cy >= h):
                 raise ValueError(
                     f"Block geometry validation failed: Block {block['id']} center {block['center']} out of image bounds."
                 )

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from io import BytesIO
+
 import cv2
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
+from PIL import Image
 
 import block_detection
 import circle_detection
@@ -263,3 +266,32 @@ def test_select_air_reference_blocks_prefers_matching_outer_pair():
     selected = block_detection._select_air_reference_blocks(dummy_img, candidates)
 
     assert [block["center"] for block in selected] == [(248, 994), (1412, 1002)]
+
+
+@pytest.mark.unit
+def test_process_blocks_allows_calculated_block_four_to_extend_beyond_frame():
+    h, w = 1600, 2260
+    img = np.full((h, w), 60000, dtype=np.uint16)
+
+    img[100:1500, 350:600] = 50000
+    img[850:1500, 350:600] = 30000
+    img[100:1500, 1550:1800] = 50000
+    img[850:1500, 1550:1800] = 30000
+
+    buffer = BytesIO()
+    Image.fromarray(img).save(buffer, format="TIFF")
+
+    params = {
+        "threshold_value": 54000,
+        "min_length_rectangular": 1200,
+        "max_length_rectangular": 1600,
+        "min_rectangularity": 0.8,
+        "min_solidity": 0.8,
+    }
+
+    out = block_detection.process_blocks(buffer.getvalue(), params)
+
+    assert out["count"] == 4
+    assert out["all_blocks"][0]["center"][0] < w
+    assert out["all_blocks"][2]["center"][0] < w
+    assert out["all_blocks"][3]["center"][0] >= w

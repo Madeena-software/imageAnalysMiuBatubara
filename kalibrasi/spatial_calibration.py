@@ -370,8 +370,8 @@ def correct_image(img_path, cal_path, out_path=None,
 # print(result)
 
 # ── Example usage ─────────────────────────────────────────────────
-cal_path = r"Kalibrasi/calibration parameter.npz"
-img_path = r"sample-stepwedge.tiff"
-out_path = r"sample-stepwedge-cal.tiff"
+cal_path = r"kalibrasi/calibration parameter.npz"
+img_path = r"sample_stepwedge.tiff"
+out_path = r"sample_stepwedge-cal.tiff"
 
 corrected = correct_image(img_path, cal_path, out_path)

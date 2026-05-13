@@ -102,8 +102,8 @@ def build_circle_attenuation_summary(diagonal_result):
     upper_mean = float(summary.get("upper_avg_mean", 0.0))
     lower_mean = float(summary.get("lower_avg_mean", 0.0))
     divider_mm = float(summary.get("x_coal_mm", 6.0))
-    normalized_divisor = 65535.0
-    normalized_scale = 10.0
+    normalized_divisor = 1.0  # Already normalized to [0, 1] in circle_detection
+    normalized_scale = 10.0   # Scale from 1/mm to 1/cm
     upper_abs_diff = abs(upper_mean - air_mean)
     lower_abs_diff = abs(lower_mean - air_mean)
     upper_mu = float(summary.get("upper_mu_avg", 0.0))
@@ -114,13 +114,18 @@ def build_circle_attenuation_summary(diagonal_result):
     lower_mu_normalized = float((lower_mu / normalized_divisor) * normalized_scale)
     upper_mu_normalized_std = float((upper_mu_std / normalized_divisor) * normalized_scale)
     lower_mu_normalized_std = float((lower_mu_std / normalized_divisor) * normalized_scale)
+    
+    # If means are identical, it's a single sample (total_sample=1)
+    is_single = (upper_mean == lower_mean)
+    left_lbl = "Coal Sample (All)" if is_single else "Upper Sample"
+    right_lbl = "Coal Sample (All)" if is_single else "Lower Sample"
+
     return {
-        "title": "Attenuation (μ) Comparison",
-        "left_label": "Upper Anti-Diagonal Sample",
-        "right_label": "Lower Anti-Diagonal Sample",
-        "left_display_label": "Upper Anti-Diagonal Sample (cm^-1)",
-        "right_display_label": "Lower Anti-Diagonal Sample (cm^-1)",
-        # Expose magnitudes for UI-facing display values
+        "title": "Attenuation (μ) Summary",
+        "left_label": left_lbl,
+        "right_label": right_lbl,
+        "left_display_label": f"{left_lbl} (cm^-1)",
+        "right_display_label": f"{right_lbl} (cm^-1)",
         "left_display_value": abs(upper_mu_normalized),
         "right_display_value": abs(lower_mu_normalized),
         "left_mu_pm": f"{abs(upper_mu_normalized):.3f} ± {upper_mu_normalized_std:.3f}",
@@ -136,7 +141,7 @@ def build_circle_attenuation_summary(diagonal_result):
         "right_mu_std": lower_mu_std,
         "left_mu_final": upper_mu,
         "right_mu_final": lower_mu,
-        "show_delta": True,
+        "show_delta": not is_single,
         "show_steps": False,
         "air_mean": air_mean,
         "upper_pcoal_mean": upper_mean,

@@ -768,15 +768,7 @@
             <h1>🎯 Image Analysis Tool</h1>
             <p>Advanced TIFF Image Processing with Circle & Block Detection</p>
             
-            <!-- Mode Toggle -->
-            <div class="mode-toggle">
-                <button type="button" class="mode-btn active" id="circleModeBtn" onclick="switchMode('circle')">
-                    ⭕ Circle Detection
-                </button>
-                <button type="button" class="mode-btn" id="blockModeBtn" onclick="switchMode('block')">
-                    🔲 Block Detection
-                </button>
-            </div>
+            <!-- Mode is now controlled by URL query parameter ?mode=circle or ?mode=block -->
         </header>
 
         <div class="content">
@@ -837,7 +829,25 @@
                         <div class="param-item">
                             <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
                             <input type="number" id="circleAirCvThreshold" value="0.2" min="0.01" max="1.00" step="0.01" />
-                            <small><strong>Impact:</strong> Higher allows more anti-diagonal air intensity variation (default: 0.2)</small>
+                            <small><strong>Impact:</strong> Higher allows more main diagonal air intensity variation (default: 0.2)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="circleTotalSample">Total Sample</label>
+                            <select id="circleTotalSample" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.95rem;">
+                                <option value="1">1 (Unified)</option>
+                                <option value="2">2 (Upper & Lower)</option>
+                            </select>
+                            <small><strong>Impact:</strong> Treat samples as a single group or split into upper/lower (default: 1)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="circleThicknessSample">Sample Thickness (mm)</label>
+                            <input type="number" id="circleThicknessSample" value="8.0" min="0.1" max="100.0" step="0.1" />
+                            <small><strong>Impact:</strong> Thickness of the sample including container base (default: 8.0)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="circleThicknessAcrylic">Acrylic Base Thickness (mm)</label>
+                            <input type="number" id="circleThicknessAcrylic" value="2.0" min="0.0" max="100.0" step="0.1" />
+                            <small><strong>Impact:</strong> Thickness of the acrylic container base (default: 2.0)</small>
                         </div>
                     </div>
                 </details>
@@ -1507,6 +1517,9 @@
                 'min_circularity': float(document.getElementById('minCircularity').value),
                 'min_solidity': float(document.getElementById('minSolidity').value),
                 'air_cv_threshold': float(document.getElementById('circleAirCvThreshold').value),
+                'total_sample': int(document.getElementById('circleTotalSample').value),
+                'thickness_sample': float(document.getElementById('circleThicknessSample').value),
+                'thickness_acrylic': float(document.getElementById('circleThicknessAcrylic').value),
                 'expected_count': 16,
                 'grid_cols': 4,
             }
@@ -1518,6 +1531,9 @@
                 ('min_circularity', 'Min Circularity'),
                 ('min_solidity', 'Min Solidity'),
                 ('air_cv_threshold', 'Air CV Validation Threshold'),
+                ('total_sample', 'Total Sample'),
+                ('thickness_sample', 'Sample Thickness (mm)'),
+                ('thickness_acrylic', 'Acrylic Base Thickness (mm)'),
                 ('grid_cols', 'Grid Columns'),
             ])
 
@@ -2379,10 +2395,17 @@
     <!-- JavaScript for mode switching and PDF export -->
         <script>
 
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode') === 'block' ? 'block' : 'circle';
+            switchMode(mode);
+            
+            // Also update the title based on mode
+            const title = mode === 'block' ? '🔲 Block Detection Tool' : '⭕ Circle Detection Tool';
+            document.querySelector('header h1').innerText = title;
+        });
+
         function switchMode(mode) {
-            // Update button states
-            document.getElementById('circleModeBtn').classList.toggle('active', mode === 'circle');
-            document.getElementById('blockModeBtn').classList.toggle('active', mode === 'block');
             
             // Show/hide parameter sections
             document.getElementById('circleParams').style.display = mode === 'circle' ? 'block' : 'none';
@@ -2435,7 +2458,10 @@
                     'Max Diameter': document.getElementById('maxDiameter').value + ' px',
                     'Min Circularity': document.getElementById('minCircularity').value,
                     'Min Solidity': document.getElementById('minSolidity').value,
-                    'Air CV Threshold': document.getElementById('circleAirCvThreshold').value
+                    'Air CV Threshold': document.getElementById('circleAirCvThreshold').value,
+                    'Total Sample': document.getElementById('circleTotalSample').value,
+                    'Sample Thickness (mm)': document.getElementById('circleThicknessSample').value,
+                    'Acrylic Thickness (mm)': document.getElementById('circleThicknessAcrylic').value
                 };
             } else {
                 return {

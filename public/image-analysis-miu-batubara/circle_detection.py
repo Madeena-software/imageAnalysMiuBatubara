@@ -339,7 +339,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
         for pos, item in grid_lookup.items():
             mask = np.zeros_like(img_16bit, dtype=np.uint8)
             cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
-            pixel_values = img_16bit[mask == 255]
+            pixel_values = img_16bit[mask == 255].astype(np.float64) / 65535.0
             if len(pixel_values) == 0:
                 continue
             measured_pixels[pos] = pixel_values
@@ -351,7 +351,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
         fig_size = max(12, grid_size * 4)
         fig, axes = plt.subplots(grid_size, grid_size, figsize=(fig_size, fig_size))
         fig.suptitle(
-            f"Histogram Distribution - {grid_size}x{grid_size} Grid (Anti-Diagonal Layout)",
+            f"Histogram Distribution - {grid_size}x{grid_size} Grid (Diagonal Layout)",
             fontsize=16,
             fontweight="bold",
         )
@@ -408,27 +408,27 @@ def analyze_grid_histograms(file_bytes, grid_results):
                 )
 
                 ax.hist(pixel_values, bins=50, color="steelblue", alpha=0.7, edgecolor="black")
-                ax.axvline(mean_val, color="red", linestyle="--", linewidth=2, label=f"Mean: {mean_val:.1f}")
+                ax.axvline(mean_val, color="red", linestyle="--", linewidth=2, label=f"Mean: {mean_val:.4f}")
                 ax.axvline(
                     median_val,
                     color="green",
                     linestyle="--",
                     linewidth=2,
-                    label=f"Median: {median_val:.1f}",
+                    label=f"Median: {median_val:.4f}",
                 )
                 ax.set_title(f"Pos {grid_pos_id} [{row},{col}]", fontsize=10, fontweight="bold")
-                ax.set_xlabel("Pixel Value (16-bit)", fontsize=8)
+                ax.set_xlabel("Normalized Pixel Value [0, 1]", fontsize=8)
                 ax.set_ylabel("Frequency", fontsize=8)
                 if global_min is not None and global_max is not None:
                     if global_max == global_min:
-                        ax.set_xlim([global_min - 0.5, global_max + 0.5])
+                        ax.set_xlim([global_min - 0.05, global_max + 0.05])
                     else:
                         pad = (global_max - global_min) * 0.02
                         ax.set_xlim([global_min - pad, global_max + pad])
                 ax.legend(fontsize=7, loc="upper right")
                 ax.grid(True, alpha=0.3)
 
-                stats_text = f"Min: {min_val:.0f}\nMax: {max_val:.0f}\nStd: {std_val:.1f}"
+                stats_text = f"Min: {min_val:.4f}\nMax: {max_val:.4f}\nStd: {std_val:.5f}"
                 ax.text(
                     0.02,
                     0.98,
@@ -480,9 +480,9 @@ def visualize_circle_invalid_roi(file_bytes, grid_results):
             row, col = item["grid_pos"]
             center = tuple(item["center"])
             radius = int(item["radius"])
-            is_anti_air = (row + col) == 3
-            color = (255, 0, 0) if is_anti_air else (0, 255, 0)
-            label_prefix = "AIR" if is_anti_air else "ROI"
+            is_air = (row == col)
+            color = (255, 0, 0) if is_air else (0, 255, 0)
+            label_prefix = "AIR" if is_air else "ROI"
             cv2.circle(img_rgb, center, radius, color, 3)
             cv2.circle(img_rgb, center, int(radius * 0.7), color, 2)
             cv2.putText(
@@ -497,7 +497,7 @@ def visualize_circle_invalid_roi(file_bytes, grid_results):
 
         return {
             "invalid_roi_image": _numpy_to_base64(img_rgb),
-            "hint": "Anti-diagonal AIR ROIs are highlighted in red. Tune threshold and diameter so each ROI stays inside hole area.",
+            "hint": "Main diagonal AIR ROIs are highlighted in red. Tune threshold and diameter so each ROI stays inside hole area.",
         }
     except Exception as e:
         raise ValueError(f"Circle invalid ROI visualization failed: {str(e)}") from e
@@ -506,19 +506,16 @@ def visualize_circle_invalid_roi(file_bytes, grid_results):
 def compare_diagonals(file_bytes, grid_results, params=None):
     """
     Pre-log FFC analysis for 4x4 circle grid.
-
-    Physics model used (differential method):
-            μ_coal = (P_coal - P_air) / x_coal
-
-    Where:
-    - P_air is taken from anti_air_mean (mean pixel value of the anti-diagonal air circles)
-    - x_coal = 6 mm (coal thickness only)
-    - Acrylic attenuation cancels out because both paths include identical acrylic layers.
+    Reference (Air) is the main diagonal.
+    Normalizes pixels to float64 [0, 1] range.
     """
     try:
         img_16bit = _load_and_validate_image(file_bytes)
         params = params or {}
         air_cv_threshold = float(params.get("air_cv_threshold", AIR_CV_THRESHOLD))
+        total_sample = int(params.get("total_sample", 1))
+        thickness_sample = float(params.get("thickness_sample", 8.0))
+        thickness_acrylic = float(params.get("thickness_acrylic", 2.0))
 
         grid_data = grid_results["grid"]
         circle_count = len(grid_data)
@@ -529,32 +526,32 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 "Adjust circle detection parameters in the UI and retry."
             )
 
-        diagonal_items = []
-        anti_diagonal_items = []
-        upper_anti_diagonal_items = []
-        lower_anti_diagonal_items = []
+        air_items = []
+        all_sample_items = []
+        upper_sample_items = []
+        lower_sample_items = []
+        
         max_row = max(item["grid_pos"][0] for item in grid_data)
         max_col = max(item["grid_pos"][1] for item in grid_data)
         grid_size = max(max_row, max_col) + 1
-        anti_diagonal_sum = grid_size - 1
 
         for item in grid_data:
             row, col = item["grid_pos"]
             if row == col:
-                diagonal_items.append(item)
-            elif (row + col) == anti_diagonal_sum:
-                anti_diagonal_items.append(item)
-            if (row + col) < anti_diagonal_sum:
-                upper_anti_diagonal_items.append(item)
-            elif (row + col) > anti_diagonal_sum:
-                lower_anti_diagonal_items.append(item)
+                air_items.append(item)
+            else:
+                all_sample_items.append(item)
+                if col > row:
+                    upper_sample_items.append(item)
+                elif row > col:
+                    lower_sample_items.append(item)
 
         def _measure(items):
             measured = []
             for item in items:
                 mask = np.zeros_like(img_16bit, dtype=np.uint8)
                 cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
-                pixel_values = img_16bit[mask == 255]
+                pixel_values = img_16bit[mask == 255].astype(np.float64) / 65535.0
                 roi_radius = float(item["radius"])
                 roi_area = float(np.pi * (roi_radius ** 2))
                 measured.append(
@@ -570,52 +567,34 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 )
             return measured
 
-        diagonal_stats = _measure(diagonal_items)
-        upper_stats = _measure(upper_anti_diagonal_items)
-        lower_stats = _measure(lower_anti_diagonal_items)
-
-        if len(diagonal_stats) == 0:
-            raise ValueError("Physics validation failed: no anti-diagonal reference circles were available.")
+        air_stats = _measure(air_items)
+        if len(air_stats) != grid_size:
+            raise ValueError(
+                f"Circle validation failed: expected {grid_size} diagonal air reference circles, "
+                f"found {len(air_stats)}."
+            )
 
         grid_stats = _measure(grid_data)
-        anti_diagonal_stats = _measure(anti_diagonal_items)
-        if len(anti_diagonal_stats) != grid_size:
-            raise ValueError(
-                f"Circle validation failed: expected {grid_size} anti-diagonal air reference circles, "
-                f"found {len(anti_diagonal_stats)}."
-            )
-        expected_coal_band_count = max((grid_size * (grid_size - 1)) // 2, 0)
-        if len(upper_stats) != expected_coal_band_count:
-            raise ValueError(
-                "Circle validation failed: expected strict upper anti-diagonal coal circle count "
-                f"of {expected_coal_band_count}, found {len(upper_stats)}."
-            )
-        if len(lower_stats) != expected_coal_band_count:
-            raise ValueError(
-                "Circle validation failed: expected strict lower anti-diagonal coal circle count "
-                f"of {expected_coal_band_count}, found {len(lower_stats)}."
-            )
-        anti_air_means = np.array([float(s["mean"]) for s in anti_diagonal_stats], dtype=float)
-        anti_air_mean = float(np.mean(anti_air_means))
-        if anti_air_mean <= 0:
+        
+        air_means = np.array([float(s["mean"]) for s in air_stats], dtype=np.float64)
+        air_mean = float(np.mean(air_means))
+        if air_mean <= 0:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
-        anti_air_cv = float(np.std(anti_air_means) / anti_air_mean)
-        if anti_air_cv > air_cv_threshold:
+        air_cv = float(np.std(air_means) / air_mean)
+        if air_cv > air_cv_threshold:
             raise ValueError(AIR_DIAGONAL_VALIDATION_ERROR)
 
-        grid_areas = np.array([float(s["roi_area"]) for s in grid_stats], dtype=float)
+        grid_areas = np.array([float(s["roi_area"]) for s in grid_stats], dtype=np.float64)
         if not np.allclose(grid_areas, grid_areas[0], rtol=0.0, atol=1e-6):
             raise ValueError(
                 "Circle ROI validation failed: expected all 16 circle ROI areas to be equal. "
                 f"Found min={float(np.min(grid_areas)):.3f}, max={float(np.max(grid_areas)):.3f}."
             )
 
-        # P_air from anti-diagonal air circles.
-        p_air = anti_air_mean
-        # Coal thickness in millimeters.
-        x_coal_mm = 6.0
+        p_air = air_mean
+        x_coal_mm = thickness_sample - thickness_acrylic
         if x_coal_mm <= 0:
-            raise ValueError("Invalid coal thickness: x_coal_mm must be positive.")
+            raise ValueError("Invalid thicknesses: Sample thickness must be greater than acrylic thickness.")
 
         def _attach_mu(stats_list):
             for s in stats_list:
@@ -623,112 +602,175 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 s["mu_coal"] = float(abs(p_coal - p_air) / x_coal_mm)
             return stats_list
 
-        upper_stats = _attach_mu(upper_stats)
-        lower_stats = _attach_mu(lower_stats)
+        if total_sample == 1:
+            # Single sample group
+            sample_stats = _measure(all_sample_items)
+            sample_stats = _attach_mu(sample_stats)
+            
+            intensity = np.array([s["mean"] for s in sample_stats], dtype=np.float64)
+            mu = np.array([s["mu_coal"] for s in sample_stats], dtype=np.float64)
+            
+            intensity_mean = float(np.mean(intensity))
+            mu_mean = float(np.mean(mu))
+            mu_std = float(np.std(mu))
+            
+            fig2, ax2 = plt.subplots(figsize=(8, 6))
+            bars2 = ax2.bar(["Sample (All Non-Diagonal)"], [mu_mean], color=["#54a24b"], width=0.4)
+            for bar, val in zip(bars2, [mu_mean]):
+                ax2.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.5f}", ha="center", va="bottom", fontsize=10)
+            ax2.set_ylabel("μ (1/mm)", fontweight="bold")
+            ax2.set_title("Mean μ for Coal Sample", fontweight="bold")
+            ax2.grid(True, alpha=0.3)
+            plt.tight_layout()
 
-        upper_intensity = np.array([s["mean"] for s in upper_stats], dtype=float)
-        lower_intensity = np.array([s["mean"] for s in lower_stats], dtype=float)
-        upper_mu = np.array([s["mu_coal"] for s in upper_stats], dtype=float)
-        lower_mu = np.array([s["mu_coal"] for s in lower_stats], dtype=float)
+            buf2 = io.BytesIO()
+            plt.savefig(buf2, format="png", dpi=100, bbox_inches="tight")
+            buf2.seek(0)
+            mu_plot_image = base64.b64encode(buf2.getvalue()).decode("utf-8")
+            plt.close(fig2)
 
-        upper_count = len(upper_intensity)
-        lower_count = len(lower_intensity)
-        if upper_count == 0 or lower_count == 0 or lower_count != upper_count:
-            raise ValueError(
-                "Circle partition validation failed: "
-                f"expected non-empty symmetric upper/lower partitions, found upper={upper_count}, "
-                f"lower={lower_count}."
-            )
+            summary = {
+                "p_air": p_air,
+                "x_coal_mm": x_coal_mm,
+                "anti_air_cv": air_cv,
+                "air_cv_threshold": air_cv_threshold,
+                "roi_area": float(grid_areas[0]),
+                "roi_area_min": float(np.min(grid_areas)),
+                "roi_area_max": float(np.max(grid_areas)),
+                "roi_area_mean": float(np.mean(grid_areas)),
+                "roi_area_std": float(np.std(grid_areas)),
+                "upper_intensity_avg": intensity_mean,
+                "lower_intensity_avg": intensity_mean,
+                "upper_mu_avg": mu_mean,
+                "lower_mu_avg": mu_mean,
+                "upper_mu_std": mu_std,
+                "lower_mu_std": mu_std,
+                "upper_mu_final": float(mu_mean + mu_std),
+                "lower_mu_final": float(mu_mean + mu_std),
+                "lower_avg_mean": intensity_mean,
+                "upper_avg_mean": intensity_mean,
+                "mean_difference": 0.0,
+                "lower_avg_median": float(np.mean([float(s["median"]) for s in sample_stats])),
+                "upper_avg_median": float(np.mean([float(s["median"]) for s in sample_stats])),
+                "lower_std_means": float(np.std(intensity)),
+                "upper_std_means": float(np.std(intensity)),
+            }
 
-        upper_intensity_mean = float(np.mean(upper_intensity))
-        lower_intensity_mean = float(np.mean(lower_intensity))
-        upper_mu_mean = float(np.mean(upper_mu))
-        lower_mu_mean = float(np.mean(lower_mu))
+            return {
+                "grid_stats": grid_stats,
+                "diagonal_stats": air_stats,
+                "upper_stats": sample_stats,
+                "lower_stats": sample_stats,
+                "summary": summary,
+                "intensity_plot_image": mu_plot_image,
+                "mu_plot_image": mu_plot_image,
+                "comparison_image": mu_plot_image,
+            }
 
-        # Plot 1: Bar graph of mean intensity (upper anti-diagonal coal circles vs lower anti-diagonal coal circles)
-        fig1, ax1 = plt.subplots(figsize=(12, 6))
-        labels = [
-            f"Upper Anti-Diagonal Coal ({upper_count})",
-            f"Lower Anti-Diagonal Coal ({lower_count})",
-        ]
-        x = np.arange(len(labels))
-        intensity_vals = [upper_intensity_mean, lower_intensity_mean]
-        bars1 = ax1.bar(x, intensity_vals, color=["#4c78a8", "#f58518"], width=0.6)
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(labels)
-        for bar, val in zip(bars1, intensity_vals):
-            ax1.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.1f}", ha="center", va="bottom", fontsize=10)
-        ax1.set_xlabel("Sample Group", fontweight="bold")
-        ax1.set_ylabel("Pixel Value (P)", fontweight="bold")
-        ax1.set_title("Mean Pixel Value (P) Comparison (Upper vs Lower Anti-Diagonal Coal Bands)", fontweight="bold")
-        ax1.grid(True, alpha=0.3)
-        plt.tight_layout()
+        else:
+            # Two sample groups
+            upper_stats = _measure(upper_sample_items)
+            lower_stats = _measure(lower_sample_items)
 
-        buf1 = io.BytesIO()
-        plt.savefig(buf1, format="png", dpi=100, bbox_inches="tight")
-        buf1.seek(0)
-        intensity_plot_image = base64.b64encode(buf1.getvalue()).decode("utf-8")
-        plt.close(fig1)
+            expected_coal_band_count = max((grid_size * (grid_size - 1)) // 2, 0)
+            if len(upper_stats) != expected_coal_band_count:
+                raise ValueError(f"Expected upper sample count {expected_coal_band_count}, found {len(upper_stats)}.")
+            if len(lower_stats) != expected_coal_band_count:
+                raise ValueError(f"Expected lower sample count {expected_coal_band_count}, found {len(lower_stats)}.")
 
-        # Plot 2: Bar graph of mean μ (upper anti-diagonal coal circles vs lower anti-diagonal coal circles)
-        fig2, ax2 = plt.subplots(figsize=(12, 6))
-        mu_vals = [upper_mu_mean, lower_mu_mean]
-        bars2 = ax2.bar(x, mu_vals, color=["#54a24b", "#e45756"], width=0.6)
-        ax2.set_xticks(x)
-        ax2.set_xticklabels(labels)
-        for bar, val in zip(bars2, mu_vals):
-            ax2.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.5f}", ha="center", va="bottom", fontsize=10)
-        ax2.set_xlabel("Sample Group", fontweight="bold")
-        ax2.set_ylabel("μ (1/mm)", fontweight="bold")
-        ax2.set_title("Mean μ Comparison (Upper vs Lower Anti-Diagonal Coal Bands)", fontweight="bold")
-        ax2.grid(True, alpha=0.3)
-        plt.tight_layout()
+            upper_stats = _attach_mu(upper_stats)
+            lower_stats = _attach_mu(lower_stats)
 
-        buf2 = io.BytesIO()
-        plt.savefig(buf2, format="png", dpi=100, bbox_inches="tight")
-        buf2.seek(0)
-        mu_plot_image = base64.b64encode(buf2.getvalue()).decode("utf-8")
-        plt.close(fig2)
+            upper_intensity = np.array([s["mean"] for s in upper_stats], dtype=np.float64)
+            lower_intensity = np.array([s["mean"] for s in lower_stats], dtype=np.float64)
+            upper_mu = np.array([s["mu_coal"] for s in upper_stats], dtype=np.float64)
+            lower_mu = np.array([s["mu_coal"] for s in lower_stats], dtype=np.float64)
 
-        summary = {
-            "p_air": p_air,
-            "x_coal_mm": x_coal_mm,
-            "anti_air_cv": anti_air_cv,
-            "air_cv_threshold": air_cv_threshold,
-            "roi_area": float(grid_areas[0]),
-            "roi_area_min": float(np.min(grid_areas)),
-            "roi_area_max": float(np.max(grid_areas)),
-            "roi_area_mean": float(np.mean(grid_areas)),
-            "roi_area_std": float(np.std(grid_areas)),
-            "upper_intensity_avg": upper_intensity_mean,
-            "lower_intensity_avg": lower_intensity_mean,
-            "upper_mu_avg": upper_mu_mean,
-            "lower_mu_avg": lower_mu_mean,
-            "upper_mu_std": float(np.std(upper_mu)),
-            "lower_mu_std": float(np.std(lower_mu)),
-            "upper_mu_final": float(upper_mu_mean + np.std(upper_mu)),
-            "lower_mu_final": float(lower_mu_mean + np.std(lower_mu)),
-            # Compatibility keys for existing UI summary table.
-            "lower_avg_mean": lower_intensity_mean,
-            "upper_avg_mean": upper_intensity_mean,
-            "mean_difference": float(abs(upper_intensity_mean - lower_intensity_mean)),
-            "lower_avg_median": float(np.mean([float(s["median"]) for s in lower_stats])),
-            "upper_avg_median": float(np.mean([float(s["median"]) for s in upper_stats])),
-            "lower_std_means": float(np.std(lower_intensity)),
-            "upper_std_means": float(np.std(upper_intensity)),
-        }
+            upper_intensity_mean = float(np.mean(upper_intensity))
+            lower_intensity_mean = float(np.mean(lower_intensity))
+            upper_mu_mean = float(np.mean(upper_mu))
+            lower_mu_mean = float(np.mean(lower_mu))
 
-        return {
-            "grid_stats": grid_stats,
-            "diagonal_stats": diagonal_stats,
-            "upper_stats": upper_stats,
-            "lower_stats": lower_stats,
-            "summary": summary,
-            "intensity_plot_image": intensity_plot_image,
-            "mu_plot_image": mu_plot_image,
-            # Backward compatibility with existing UI key.
-            "comparison_image": mu_plot_image,
-        }
+            fig1, ax1 = plt.subplots(figsize=(12, 6))
+            labels = [
+                f"Upper Sample ({len(upper_intensity)})",
+                f"Lower Sample ({len(lower_intensity)})",
+            ]
+            x = np.arange(len(labels))
+            intensity_vals = [upper_intensity_mean, lower_intensity_mean]
+            bars1 = ax1.bar(x, intensity_vals, color=["#4c78a8", "#f58518"], width=0.6)
+            ax1.set_xticks(x)
+            ax1.set_xticklabels(labels)
+            for bar, val in zip(bars1, intensity_vals):
+                ax1.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.4f}", ha="center", va="bottom", fontsize=10)
+            ax1.set_xlabel("Sample Group", fontweight="bold")
+            ax1.set_ylabel("Pixel Value [0, 1]", fontweight="bold")
+            ax1.set_title("Mean Pixel Value Comparison", fontweight="bold")
+            ax1.grid(True, alpha=0.3)
+            plt.tight_layout()
+
+            buf1 = io.BytesIO()
+            plt.savefig(buf1, format="png", dpi=100, bbox_inches="tight")
+            buf1.seek(0)
+            intensity_plot_image = base64.b64encode(buf1.getvalue()).decode("utf-8")
+            plt.close(fig1)
+
+            fig2, ax2 = plt.subplots(figsize=(12, 6))
+            mu_vals = [upper_mu_mean, lower_mu_mean]
+            bars2 = ax2.bar(x, mu_vals, color=["#54a24b", "#e45756"], width=0.6)
+            ax2.set_xticks(x)
+            ax2.set_xticklabels(labels)
+            for bar, val in zip(bars2, mu_vals):
+                ax2.text(bar.get_x() + bar.get_width() / 2.0, val, f"{val:.5f}", ha="center", va="bottom", fontsize=10)
+            ax2.set_xlabel("Sample Group", fontweight="bold")
+            ax2.set_ylabel("μ (1/mm)", fontweight="bold")
+            ax2.set_title("Mean μ Comparison (Upper vs Lower Samples)", fontweight="bold")
+            ax2.grid(True, alpha=0.3)
+            plt.tight_layout()
+
+            buf2 = io.BytesIO()
+            plt.savefig(buf2, format="png", dpi=100, bbox_inches="tight")
+            buf2.seek(0)
+            mu_plot_image = base64.b64encode(buf2.getvalue()).decode("utf-8")
+            plt.close(fig2)
+
+            summary = {
+                "p_air": p_air,
+                "x_coal_mm": x_coal_mm,
+                "anti_air_cv": air_cv,
+                "air_cv_threshold": air_cv_threshold,
+                "roi_area": float(grid_areas[0]),
+                "roi_area_min": float(np.min(grid_areas)),
+                "roi_area_max": float(np.max(grid_areas)),
+                "roi_area_mean": float(np.mean(grid_areas)),
+                "roi_area_std": float(np.std(grid_areas)),
+                "upper_intensity_avg": upper_intensity_mean,
+                "lower_intensity_avg": lower_intensity_mean,
+                "upper_mu_avg": upper_mu_mean,
+                "lower_mu_avg": lower_mu_mean,
+                "upper_mu_std": float(np.std(upper_mu)),
+                "lower_mu_std": float(np.std(lower_mu)),
+                "upper_mu_final": float(upper_mu_mean + np.std(upper_mu)),
+                "lower_mu_final": float(lower_mu_mean + np.std(lower_mu)),
+                "lower_avg_mean": lower_intensity_mean,
+                "upper_avg_mean": upper_intensity_mean,
+                "mean_difference": float(abs(upper_intensity_mean - lower_intensity_mean)),
+                "lower_avg_median": float(np.mean([float(s["median"]) for s in lower_stats])),
+                "upper_avg_median": float(np.mean([float(s["median"]) for s in upper_stats])),
+                "lower_std_means": float(np.std(lower_intensity)),
+                "upper_std_means": float(np.std(upper_intensity)),
+            }
+
+            return {
+                "grid_stats": grid_stats,
+                "diagonal_stats": air_stats,
+                "upper_stats": upper_stats,
+                "lower_stats": lower_stats,
+                "summary": summary,
+                "intensity_plot_image": intensity_plot_image,
+                "mu_plot_image": mu_plot_image,
+                "comparison_image": mu_plot_image,
+            }
 
     except Exception as e:
         raise ValueError(f"Circle differential attenuation analysis failed: {str(e)}") from e

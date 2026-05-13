@@ -592,9 +592,9 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             )
 
         p_air = air_mean
-        x_coal_mm = thickness_sample - thickness_acrylic
+        x_coal_mm = thickness_sample  # Sample thickness is the coal sample x
         if x_coal_mm <= 0:
-            raise ValueError("Invalid thicknesses: Sample thickness must be greater than acrylic thickness.")
+            raise ValueError("Invalid thickness: Sample thickness must be greater than 0.")
 
         def _attach_mu(stats_list):
             for s in stats_list:
@@ -654,6 +654,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 "upper_avg_median": float(np.mean([float(s["median"]) for s in sample_stats])),
                 "lower_std_means": float(np.std(intensity)),
                 "upper_std_means": float(np.std(intensity)),
+                "total_sample": total_sample,
             }
 
             return {
@@ -753,12 +754,13 @@ def compare_diagonals(file_bytes, grid_results, params=None):
                 "upper_mu_final": float(upper_mu_mean + np.std(upper_mu)),
                 "lower_mu_final": float(lower_mu_mean + np.std(lower_mu)),
                 "lower_avg_mean": lower_intensity_mean,
-                "upper_avg_mean": upper_intensity_mean,
-                "mean_difference": float(abs(upper_intensity_mean - lower_intensity_mean)),
+                "upper_avg_mean": float(np.mean(upper_intensity)),
+                "mean_difference": float(abs(np.mean(upper_intensity) - np.mean(lower_intensity))),
                 "lower_avg_median": float(np.mean([float(s["median"]) for s in lower_stats])),
                 "upper_avg_median": float(np.mean([float(s["median"]) for s in upper_stats])),
                 "lower_std_means": float(np.std(lower_intensity)),
                 "upper_std_means": float(np.std(upper_intensity)),
+                "total_sample": total_sample,
             }
 
             return {

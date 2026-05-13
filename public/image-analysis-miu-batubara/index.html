@@ -1227,19 +1227,15 @@
             if not summary_payload:
                 container.innerHTML = ''
                 return
-            def positive_pm(value, pm_key):
-                raw_pm = summary_payload.get(pm_key, "")
-                if raw_pm:
-                    return str(raw_pm).replace("-", "")
-                return f"{abs(value):.3f}"
-
             show_delta = summary_payload.get("show_delta", True)
             left_value = summary_payload.get("left_display_value", summary_payload.get("left_mu", 0.0))
             right_value = summary_payload.get("right_display_value", summary_payload.get("right_mu", 0.0))
             display_unit = summary_payload.get("display_unit", "")
-            left_display = positive_pm(left_value, "left_mu_pm") if show_delta else f"{abs(left_value):.3f}"
-            right_display = positive_pm(right_value, "right_mu_pm") if show_delta else f"{abs(right_value):.3f}"
-            if display_unit and not show_delta:
+            
+            left_display = summary_payload.get("left_mu_pm", f"{abs(left_value):.2f}")
+            right_display = summary_payload.get("right_mu_pm", f"{abs(right_value):.2f}")
+            
+            if display_unit:
                 left_display = f"{left_display} {display_unit}"
                 right_display = f"{right_display} {display_unit}"
             steps_html = ''
@@ -1284,16 +1280,20 @@
                 '''
             left_label = summary_payload.get("left_display_label", summary_payload.get("left_label", "Sample A"))
             right_label = summary_payload.get("right_display_label", summary_payload.get("right_label", "Sample B"))
+            right_item_html = ""
+            if show_delta:
+                right_item_html = f'''
+            <div class="attenuation-comparison__item">
+                <span class="attenuation-comparison__label">{right_label}:</span>
+                <span class="attenuation-comparison__value">{right_display}</span>
+            </div>'''
+            
             container.innerHTML = f'''
             <h3>{summary_payload.get("title", "Attenuation (μ) Comparison")}</h3>
             <div class="attenuation-comparison__item">
                 <span class="attenuation-comparison__label">{left_label}:</span>
                 <span class="attenuation-comparison__value">{left_display}</span>
-            </div>
-            <div class="attenuation-comparison__item">
-                <span class="attenuation-comparison__label">{right_label}:</span>
-                <span class="attenuation-comparison__value">{right_display}</span>
-            </div>
+            </div>{right_item_html}
             {steps_html}
             '''
 
@@ -2243,6 +2243,32 @@
             summary = build_circle_histogram_summary(diagonal_result, histogram_result)
             summary_div = document.getElementById('diagonalSummary')
             
+            is_single = int(summary.get("total_sample", 2)) == 1
+            left_lbl = "Coal Sample (All)" if is_single else "Upper Anti-Diagonal Sample"
+            right_lbl = "Lower Anti-Diagonal Sample"
+            
+            header_right = "" if is_single else f"<th>{right_lbl}</th>"
+            def cell(val):
+                return "" if is_single else f"<td>{val}</td>"
+            
+            notes = []
+            def fmt(val):
+                if val is None: return "0.00"
+                v = float(val)
+                rounded = round(abs(v), 2)
+                if rounded == 0.0 and v != 0.0:
+                    note = f"* exact: {v:.5f}"
+                    if note not in notes: notes.append(note)
+                    return "0.00*"
+                return f"{v:.2f}"
+
+            lower_step_html = ""
+            if not is_single:
+                lower_step_html = f'''
+                        <div><strong>Lower:</strong> μ = {fmt(summary['lower_mu_avg'])} ± {fmt(summary['lower_mu_std'])}</div>'''
+
+            upper_step_label = "Sample:" if is_single else "Upper:"
+
             summary_html = f'''
             <div style="background: white; padding: 20px; border-radius: 10px; margin-top: 20px;">
                 <h4 style="color: #333; margin-bottom: 15px;">Summary Statistics</h4>
@@ -2250,61 +2276,56 @@
                     <thead>
                         <tr>
                             <th>Metric</th>
-                                <th>Upper Anti-Diagonal Sample</th>
-                                <th>Lower Anti-Diagonal Sample</th>
+                                <th>{left_lbl}</th>
+                                {header_right}
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>Mean Pair</td>
-                            <td>{summary['p_air']:.1f}</td>
-                            <td>{summary['p_air']:.1f}</td>
+                            <td>{fmt(summary['p_air'])}</td>
+                            {cell(fmt(summary['p_air']))}
                         </tr>
                         <tr>
                             <td>Mean Pcoal</td>
-                            <td>{summary['upper_avg_mean']:.1f}</td>
-                            <td>{summary['lower_avg_mean']:.1f}</td>
-                        </tr>
-                        <tr>
-                            <td>Normalized μ (m^-1)</td>
-                            <td>{(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f} ± {(summary['upper_mu_std'] / 65535.0) * 1000.0:.3f}</td>
-                            <td>{(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f} ± {(summary['lower_mu_std'] / 65535.0) * 1000.0:.3f}</td>
+                            <td>{fmt(summary['upper_avg_mean'])}</td>
+                            {cell(fmt(summary['lower_avg_mean']))}
                         </tr>
                         <tr>
                             <td>|Pcoal - Pair|</td>
-                            <td>{abs(summary['upper_avg_mean'] - summary['p_air']):.1f}</td>
-                            <td>{abs(summary['lower_avg_mean'] - summary['p_air']):.1f}</td>
+                            <td>{fmt(abs(summary['upper_avg_mean'] - summary['p_air']))}</td>
+                            {cell(fmt(abs(summary['lower_avg_mean'] - summary['p_air'])))}
                         </tr>
                         <tr>
-                            <td>Divider</td>
+                            <td>Divider (x_coal_mm)</td>
                             <td>{summary['x_coal_mm']:.0f} mm</td>
-                            <td>{summary['x_coal_mm']:.0f} mm</td>
+                            {cell(f"{summary['x_coal_mm']:.0f} mm")}
                         </tr>
                         <tr>
                             <td>μ = μ avg ± std</td>
-                            <td>{summary['upper_mu_avg']:.5f} ± {summary['upper_mu_std']:.5f}</td>
-                            <td>{summary['lower_mu_avg']:.5f} ± {summary['lower_mu_std']:.5f}</td>
-                        </tr>
-                        <tr>
-                            <td>Average Median</td>
-                            <td>{summary['upper_avg_median']:.1f}</td>
-                            <td>{summary['lower_avg_median']:.1f}</td>
+                            <td>{fmt(summary['upper_mu_avg'])} ± {fmt(summary['upper_mu_std'])}</td>
+                            {cell(f"{fmt(summary['lower_mu_avg'])} ± {fmt(summary['lower_mu_std'])}")}
                         </tr>
                         <tr>
                             <td>Std of Means</td>
-                            <td>{summary['upper_std_means']:.1f}</td>
-                            <td>{summary['lower_std_means']:.1f}</td>
+                            <td>{fmt(summary['upper_std_means'])}</td>
+                            {cell(fmt(summary['lower_std_means']))}
                         </tr>
                     </tbody>
                 </table>
+                '''
+            
+            if notes:
+                notes_html = "<br>".join(notes)
+                summary_html += f'<div style="margin-top: 10px; font-size: 0.85rem; color: #666;">{notes_html}</div>'
+
+            summary_html += f'''
                 <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
                     <h4 style="color: #333; margin-bottom: 12px;">Step-by-Step μ Calculation</h4>
                     <div style="color: #555; font-size: 0.95rem; line-height: 1.8;">
                         <div><strong>Formula:</strong> μ = |Pcoal - Pair| / {summary['x_coal_mm']:.0f} mm</div>
-                        <div style="margin-top: 8px;"><strong>Upper:</strong> μ = {summary['upper_mu_avg']:.5f} ± {summary['upper_mu_std']:.5f}</div>
-                        <div><strong>Lower:</strong> μ = {summary['lower_mu_avg']:.5f} ± {summary['lower_mu_std']:.5f}</div>
-                        <div style="margin-top: 8px;"><strong>Upper normalized:</strong> {summary['upper_mu_avg']:.5f} / 65535 x 1000 = {(summary['upper_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1 ± {(summary['upper_mu_std'] / 65535.0) * 1000.0:.3f}</div>
-                        <div><strong>Lower normalized:</strong> {summary['lower_mu_avg']:.5f} / 65535 x 1000 = {(summary['lower_mu_avg'] / 65535.0) * 1000.0:.3f} m^-1 ± {(summary['lower_mu_std'] / 65535.0) * 1000.0:.3f}</div>
+                        <div style="margin-top: 8px;"><strong>{upper_step_label}</strong> μ = {fmt(summary['upper_mu_avg'])} ± {fmt(summary['upper_mu_std'])}</div>
+                        {lower_step_html}
                     </div>
                 </div>
             </div>

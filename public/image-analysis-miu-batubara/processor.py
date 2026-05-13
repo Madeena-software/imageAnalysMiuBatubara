@@ -115,8 +115,8 @@ def build_circle_attenuation_summary(diagonal_result):
     upper_mu_normalized_std = float((upper_mu_std / normalized_divisor) * normalized_scale)
     lower_mu_normalized_std = float((lower_mu_std / normalized_divisor) * normalized_scale)
     
-    # If means are identical, it's a single sample (total_sample=1)
-    is_single = (upper_mean == lower_mean)
+    # Determine if it's a single sample group
+    is_single = (int(summary.get("total_sample", 2)) == 1)
     left_lbl = "Coal Sample (All)" if is_single else "Upper Sample"
     right_lbl = "Coal Sample (All)" if is_single else "Lower Sample"
 
@@ -128,8 +128,8 @@ def build_circle_attenuation_summary(diagonal_result):
         "right_display_label": f"{right_lbl} (cm^-1)",
         "left_display_value": abs(upper_mu_normalized),
         "right_display_value": abs(lower_mu_normalized),
-        "left_mu_pm": f"{abs(upper_mu_normalized):.3f} ± {upper_mu_normalized_std:.3f}",
-        "right_mu_pm": f"{abs(lower_mu_normalized):.3f} ± {lower_mu_normalized_std:.3f}",
+        "left_mu_pm": f"{abs(upper_mu_normalized):.2f} ± {upper_mu_normalized_std:.2f}",
+        "right_mu_pm": f"{abs(lower_mu_normalized):.2f} ± {lower_mu_normalized_std:.2f}",
         "display_unit": "cm^-1",
         "conversion_divisor": normalized_divisor,
         "conversion_scale": normalized_scale,

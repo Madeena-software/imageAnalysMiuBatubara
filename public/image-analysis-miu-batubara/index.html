@@ -841,7 +841,7 @@
                         </div>
                         <div class="param-item">
                             <label for="circleThicknessSample">Sample Thickness (mm)</label>
-                            <input type="number" id="circleThicknessSample" value="8.0" min="0.1" max="100.0" step="0.1" />
+                            <input type="number" id="circleThicknessSample" value="6.0" min="0.1" max="100.0" step="0.1" />
                             <small><strong>Impact:</strong> Thickness of the sample including container base (default: 8.0)</small>
                         </div>
                         <div class="param-item">
@@ -2185,9 +2185,9 @@
                             <tr>
                                 <td>{item.get('position_id', '')}</td>
                                 <td>[{grid_pos[0]}, {grid_pos[1]}]</td>
-                                <td>{item.get('mean', 0.0):.1f}</td>
-                                <td>{item.get('median', 0.0):.1f}</td>
-                                <td>{item.get('std', 0.0):.1f}</td>
+                                <td>{item.get('mean', 0.0):.2f}</td>
+                                <td>{item.get('median', 0.0):.2f}</td>
+                                <td>{item.get('std', 0.0):.2f}</td>
                                 <td>{item.get('radius', 0.0):.0f}</td>
                                 <td>{item.get('roi_area', 0.0):.1f}</td>
                             </tr>
@@ -2265,7 +2265,7 @@
             lower_step_html = ""
             if not is_single:
                 lower_step_html = f'''
-                        <div><strong>Lower:</strong> μ = {fmt(summary['lower_mu_avg'])} ± {fmt(summary['lower_mu_std'])}</div>'''
+                        <div><strong>Lower:</strong> μ = {fmt(summary['lower_mu_avg']*10.0)} ± {fmt(summary['lower_mu_std']*10.0)} cm^-1</div>'''
 
             upper_step_label = "Sample:" if is_single else "Upper:"
 
@@ -2297,14 +2297,14 @@
                             {cell(fmt(abs(summary['lower_avg_mean'] - summary['p_air'])))}
                         </tr>
                         <tr>
-                            <td>Divider (x_coal_mm)</td>
-                            <td>{summary['x_coal_mm']:.0f} mm</td>
-                            {cell(f"{summary['x_coal_mm']:.0f} mm")}
+                            <td>Divider (cm)</td>
+                            <td>{summary['x_coal_mm']/10.0:.1f} cm</td>
+                            {cell(f"{summary['x_coal_mm']/10.0:.1f} cm")}
                         </tr>
                         <tr>
-                            <td>μ = μ avg ± std</td>
-                            <td>{fmt(summary['upper_mu_avg'])} ± {fmt(summary['upper_mu_std'])}</td>
-                            {cell(f"{fmt(summary['lower_mu_avg'])} ± {fmt(summary['lower_mu_std'])}")}
+                            <td>μ = μ avg ± std (cm^-1)</td>
+                            <td>{fmt(summary['upper_mu_avg']*10.0)} ± {fmt(summary['upper_mu_std']*10.0)}</td>
+                            {cell(f"{fmt(summary['lower_mu_avg']*10.0)} ± {fmt(summary['lower_mu_std']*10.0)}")}
                         </tr>
                         <tr>
                             <td>Std of Means</td>
@@ -2323,8 +2323,8 @@
                 <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
                     <h4 style="color: #333; margin-bottom: 12px;">Step-by-Step μ Calculation</h4>
                     <div style="color: #555; font-size: 0.95rem; line-height: 1.8;">
-                        <div><strong>Formula:</strong> μ = |Pcoal - Pair| / {summary['x_coal_mm']:.0f} mm</div>
-                        <div style="margin-top: 8px;"><strong>{upper_step_label}</strong> μ = {fmt(summary['upper_mu_avg'])} ± {fmt(summary['upper_mu_std'])}</div>
+                        <div><strong>Formula:</strong> μ = |Pcoal - Pair| / {summary['x_coal_mm']/10.0:.1f} cm</div>
+                        <div style="margin-top: 8px;"><strong>{upper_step_label}</strong> μ = {fmt(summary['upper_mu_avg']*10.0)} ± {fmt(summary['upper_mu_std']*10.0)} cm^-1</div>
                         {lower_step_html}
                     </div>
                 </div>

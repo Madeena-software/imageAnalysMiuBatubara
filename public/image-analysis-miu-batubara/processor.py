@@ -170,8 +170,8 @@ def build_block_attenuation_summary(comparison_result):
     delta_mu_block2 = float(summary.get("delta_mu_block2", 0.0))
     delta_mu_block4 = float(summary.get("delta_mu_block4", 0.0))
     delta_mu = abs(mu_block2 - mu_block4)
-    # Apply conversion for display: 16-bit normalization then scale to per-cm
-    normalized_divisor = 65535.0
+    # Apply conversion for display: use normalization metadata when provided.
+    normalized_divisor = float(summary.get("normalization_divisor", 65535.0))
     normalized_scale = 10.0
     left_mu_normalized = float((mu_block2 / normalized_divisor) * normalized_scale)
     right_mu_normalized = float((mu_block4 / normalized_divisor) * normalized_scale)

@@ -35,7 +35,7 @@ def _load_image(file_bytes):
 
 
 def _load_and_validate_image(file_bytes):
-    """Validate TIFF grayscale input and normalize any 16-bit NumPy dtype to uint16."""
+    """Validate grayscale TIFF input and normalize dtype for analysis."""
     try:
         pil_img = Image.open(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -52,11 +52,39 @@ def _load_and_validate_image(file_bytes):
         raise ValueError(
             f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
         )
+    if img.dtype.kind == "f":
+        return img.astype(np.float32, copy=False)
     if img.dtype.kind != "u" or img.dtype.itemsize != 2:
         raise ValueError(
-            f"Image format validation failed: expected 16-bit grayscale TIFF, got dtype '{img.dtype}'."
+            "Image format validation failed: expected 16-bit uint TIFF or float32 TIFF, "
+            f"got dtype '{img.dtype}'."
         )
     return img.astype(np.uint16, copy=False)
+
+
+def _normalize_for_physics(img):
+    """Normalize grayscale image for physics calculations with metadata."""
+    if img.dtype.kind == "u" and img.dtype.itemsize == 2:
+        return img.astype(np.float64, copy=False), {
+            "method": "raw",
+            "min": 0.0,
+            "max": 65535.0,
+            "divisor": 65535.0,
+        }
+
+    if img.dtype.kind == "f":
+        finite_mask = np.isfinite(img)
+        if not np.any(finite_mask):
+            raise ValueError("Image normalization failed: float TIFF contains no finite values.")
+        finite_vals = img[finite_mask].astype(np.float64, copy=False)
+        min_val = float(np.min(finite_vals))
+        max_val = float(np.max(finite_vals))
+        denom = max(max_val - min_val, 1e-12)
+        normalized = (img.astype(np.float64, copy=False) - min_val) / denom
+        normalized = np.where(finite_mask, normalized, 0.0)
+        return normalized, {"method": "minmax", "min": min_val, "max": max_val, "divisor": 1.0}
+
+    raise ValueError(f"Image normalization failed: unsupported dtype '{img.dtype}'.")
 
 
 def _shrink_box(box, ratio=ROI_SHRINK_RATIO):
@@ -827,6 +855,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
     """
     try:
         img_16bit = _load_and_validate_image(file_bytes)
+        physics_img, normalization_meta = _normalize_for_physics(img_16bit)
         params = params or {}
         air_step_max_rel_diff = float(params.get("air_step_max_rel_diff", AIR_STEP_MAX_REL_DIFF))
         subdivision_data = subdivisions["subdivisions"]
@@ -838,7 +867,7 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             block_subs = sorted(block_subs, key=lambda s: s["subdivision_id"])
             stats = []
             for sub in block_subs:
-                mean_val, pixel_values = _mean_intensity_in_box(img_16bit, sub["box"], ROI_SHRINK_RATIO)
+                mean_val, pixel_values = _mean_intensity_in_box(physics_img, sub["box"], ROI_SHRINK_RATIO)
                 stats.append(
                     {
                         "subdivision_id": sub["subdivision_id"],
@@ -1121,6 +1150,10 @@ def compare_blocks_1_vs_3(file_bytes, subdivisions, params=None):
             "orientation": orientation,
             "air_step_max_rel_diff": air_step_max_rel_diff,
             "air_bottom_rel_diff": float(bottom_rel_diff),
+            "normalization_method": normalization_meta["method"],
+            "normalization_min": normalization_meta["min"],
+            "normalization_max": normalization_meta["max"],
+            "normalization_divisor": normalization_meta["divisor"],
             "mu_block2": block2_model["mu_coal"],
             "mu_block4": block4_model["mu_coal"],
             "delta_mu_block2": block2_model["mu_coal_stderr"],

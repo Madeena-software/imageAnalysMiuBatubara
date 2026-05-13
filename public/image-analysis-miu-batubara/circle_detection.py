@@ -31,7 +31,7 @@ def _load_image(file_bytes):
 
 
 def _load_and_validate_image(file_bytes):
-    """Validate TIFF grayscale input and normalize any 16-bit NumPy dtype to uint16."""
+    """Validate grayscale TIFF input and normalize dtype for analysis."""
     try:
         pil_img = Image.open(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -48,11 +48,35 @@ def _load_and_validate_image(file_bytes):
         raise ValueError(
             f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
         )
+    if img.dtype.kind == "f":
+        return img.astype(np.float32, copy=False)
     if img.dtype.kind != "u" or img.dtype.itemsize != 2:
         raise ValueError(
-            f"Image format validation failed: expected 16-bit grayscale TIFF, got dtype '{img.dtype}'."
+            "Image format validation failed: expected 16-bit uint TIFF or float32 TIFF, "
+            f"got dtype '{img.dtype}'."
         )
     return img.astype(np.uint16, copy=False)
+
+
+def _normalize_for_analysis(img):
+    """Normalize grayscale image to [0, 1] for analysis with metadata."""
+    if img.dtype.kind == "u" and img.dtype.itemsize == 2:
+        normalized = img.astype(np.float64, copy=False) / 65535.0
+        return normalized, {"method": "scale", "min": 0.0, "max": 65535.0, "divisor": 65535.0}
+
+    if img.dtype.kind == "f":
+        finite_mask = np.isfinite(img)
+        if not np.any(finite_mask):
+            raise ValueError("Image normalization failed: float TIFF contains no finite values.")
+        finite_vals = img[finite_mask].astype(np.float64, copy=False)
+        min_val = float(np.min(finite_vals))
+        max_val = float(np.max(finite_vals))
+        denom = max(max_val - min_val, 1e-12)
+        normalized = (img.astype(np.float64, copy=False) - min_val) / denom
+        normalized = np.where(finite_mask, normalized, 0.0)
+        return normalized, {"method": "minmax", "min": min_val, "max": max_val, "divisor": 1.0}
+
+    raise ValueError(f"Image normalization failed: unsupported dtype '{img.dtype}'.")
 
 
 def _numpy_to_base64(img_array):
@@ -323,6 +347,8 @@ def analyze_grid_histograms(file_bytes, grid_results):
         if img_16bit is None:
             return None
 
+        normalized_img, _ = _normalize_for_analysis(img_16bit)
+
         grid_data = grid_results["grid"]
         histogram_stats = []
         max_row = max(item["grid_pos"][0] for item in grid_data)
@@ -339,7 +365,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
         for pos, item in grid_lookup.items():
             mask = np.zeros_like(img_16bit, dtype=np.uint8)
             cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
-            pixel_values = img_16bit[mask == 255].astype(np.float64) / 65535.0
+            pixel_values = normalized_img[mask == 255]
             if len(pixel_values) == 0:
                 continue
             measured_pixels[pos] = pixel_values
@@ -551,7 +577,7 @@ def compare_diagonals(file_bytes, grid_results, params=None):
             for item in items:
                 mask = np.zeros_like(img_16bit, dtype=np.uint8)
                 cv2.circle(mask, item["center"], int(item["radius"] * 0.7), 255, -1)
-                pixel_values = img_16bit[mask == 255].astype(np.float64) / 65535.0
+                pixel_values = normalized_img[mask == 255]
                 roi_radius = float(item["radius"])
                 roi_area = float(np.pi * (roi_radius ** 2))
                 measured.append(

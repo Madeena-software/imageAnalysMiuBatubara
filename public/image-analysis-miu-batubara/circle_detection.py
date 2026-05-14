@@ -97,7 +97,7 @@ def process_tiff_image(file_bytes, params):
     try:
         img_16bit = _load_and_validate_image(file_bytes)
 
-        threshold_value = params.get("threshold_value", 24000)
+        threshold_value = float(params.get("threshold_value", 24000))
         min_diameter = params.get("min_diameter", 50)
         max_diameter = params.get("max_diameter", 357)
         min_area = np.pi * (min_diameter / 2) ** 2

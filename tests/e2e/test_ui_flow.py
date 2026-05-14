@@ -104,6 +104,7 @@ def test_circle_detection_ui_flow(e2e_base_url, browser_page):
 
     page.click("#circleModeBtn")
     assert "active" in (page.get_attribute("#circleModeBtn", "class") or "")
+    page.fill("#thresholdValue", "24000.5")
 
     file_path = REPO_ROOT / "Wadah Silinder Baru_1770011538520_processedimage.tiff"
     page.set_input_files("#fileInput", str(file_path))
@@ -123,6 +124,10 @@ def test_circle_detection_ui_flow(e2e_base_url, browser_page):
 
     page.click("#circleMasterDetails > summary")
     expect(page.locator("#circleMasterDetails")).to_have_attribute("open", "")
+    page.click("#circleParametersDetails > summary")
+    circle_params = page.locator("#circleParametersSnapshot")
+    expect(circle_params).to_be_visible()
+    expect(circle_params).to_contain_text("24000.5")
     _assert_details_is_collapsed(page, "#circleHistogramDetails")
     _assert_details_is_collapsed(page, "#circleExportDetails")
 

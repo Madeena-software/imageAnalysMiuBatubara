@@ -111,6 +111,40 @@ def test_golden_circle_pipeline_deterministic_with_mock_dom(circle_golden_base64
 
 
 @pytest.mark.integration
+def test_circle_pipeline_accepts_float_threshold(circle_golden_base64):
+    original_cv = circle_detection.AIR_CV_THRESHOLD
+    circle_detection.AIR_CV_THRESHOLD = 0.06
+    try:
+        circle_bytes = base64.b64decode(circle_golden_base64)
+        params = {
+            "threshold_value": 24000.5,
+            "min_diameter": 280,
+            "max_diameter": 340,
+            "min_circularity": 0.6,
+            "min_solidity": 0.7,
+            "expected_count": 16,
+            "grid_cols": 4,
+        }
+
+        out = {}
+
+        def _pipeline_once():
+            out["det"] = processor.process_tiff_image(circle_bytes, params)
+            out["grid"] = processor.detect_grid_from_diagonal(circle_bytes, out["det"], 4)
+            out["diag"] = processor.compare_diagonals(circle_bytes, out["grid"])
+
+        _, error_el, _ = _run_with_mock_dom(_pipeline_once)
+
+        assert error_el.innerText == ""
+        assert out["det"]["count"] > 0
+        assert len(out["grid"]["grid"]) == 16
+        assert "summary" in out["diag"]
+        assert _is_base64_png(out["det"]["mask_image"])
+    finally:
+        circle_detection.AIR_CV_THRESHOLD = original_cv
+
+
+@pytest.mark.integration
 def test_golden_block_pipeline_plausibility_and_r_squared(block_golden_base64):
     # Relax only strict air-reference guards for deterministic golden integration coverage.
     old_grad = block_detection.AIR_GRADIENT_MIN_SCORE

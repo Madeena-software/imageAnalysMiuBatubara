@@ -74,6 +74,12 @@
     return 'Not available';
   }
 
+  function getCleanedImageFilename() {
+    const name = getSelectedImageFilename();
+    if (name === 'Not available') return '';
+    return name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+  }
+
   // Main circle export that mirrors the Python layout requested
   window.exportCircleResultsToPdf = async function() {
     const { jsPDF } = window.jspdf;
@@ -100,15 +106,16 @@
     pdf.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 8;
 
-    // 1. MIU Summary (try 'miuSummary' then 'diagonalSummary')
+    // 1. MIU Summary (try 'circleAttenuationComparison', then 'miuSummary', then fallback to table)
     if (typeof getSummaryTextFromElement === 'function') {
-      const miuHtml = document.getElementById('miuSummary') ? document.getElementById('miuSummary').innerText : null;
+      const miuHtml = getSummaryTextFromElement('circleAttenuationComparison') || 
+                      getSummaryTextFromElement('miuSummary');
       if (miuHtml) {
         yPos += 2;
         yPos = ensureSpace(pdf, yPos, pageHeight, margin, 28);
         yPos = addSummarySection(pdf, miuHtml, margin, yPos, pageHeight, 'MIU Summary');
-      } else {
-        const diagonalTable = typeof getTableDataFromElement === 'function' && getTableDataFromElement('diagonalSummary');
+      } else if (typeof getTableDataFromElement === 'function') {
+        const diagonalTable = getTableDataFromElement('diagonalSummary');
         if (diagonalTable) {
           yPos = addTableSectionToPdf(pdf, diagonalTable, margin, yPos, pageHeight, contentWidth, 'MIU Summary');
         }
@@ -123,9 +130,20 @@
       }
     }
 
+    // 2.5 Step-by-Step Calculation
+    if (typeof getSummaryTextFromElement === 'function') {
+      const stepHtml = getSummaryTextFromElement('stepByStepCalc');
+      if (stepHtml) {
+        yPos += 4;
+        yPos = addSummarySection(pdf, stepHtml, margin, yPos, pageHeight, 'Step-by-Step μ Calculation');
+      }
+    }
+
     // 3. Processing Parameters
     if (typeof getParametersFromUI === 'function') {
       const params = getParametersFromUI('circle');
+      pdf.addPage();
+      yPos = margin;
       yPos = addParametersSectionToPdf(pdf, params, margin, yPos, pageHeight);
       yPos += 6;
     }
@@ -164,10 +182,12 @@
     yPos += 6;
     pdf.setFontSize(10);
     pdf.setTextColor(100);
-    pdf.text('Image Analysis Tool - Circle & Block Detection', pageWidth/2, yPos, { align: 'center' });
+    pdf.text('Image Analysis Tool', pageWidth/2, yPos, { align: 'center' });
     yPos += 4;
 
-    pdf.save(`circle_detection_report_${nowStamp()}.pdf`);
+    const imgName = getCleanedImageFilename();
+    const filenamePrefix = imgName ? `circle_detection_report_${imgName}_` : 'circle_detection_report_';
+    pdf.save(`${filenamePrefix}${nowStamp()}.pdf`);
   };
 
   // Basic block exporter that reuses circle layout where appropriate
@@ -195,6 +215,8 @@
     // Parameters
     if (typeof getParametersFromUI === 'function') {
       const params = getParametersFromUI('block');
+      pdf.addPage();
+      yPos = margin;
       pdf.setFontSize(12);
       pdf.setTextColor(104, 97, 206);
       pdf.text('Processing Parameters', margin, yPos);
@@ -221,7 +243,9 @@
       }
     }
 
-    pdf.save(`block_detection_report_${nowStamp()}.pdf`);
+    const imgName = getCleanedImageFilename();
+    const filenamePrefix = imgName ? `block_detection_report_${imgName}_` : 'block_detection_report_';
+    pdf.save(`${filenamePrefix}${nowStamp()}.pdf`);
   };
 
 })();

@@ -2181,7 +2181,7 @@
                 histogram_html += '''
                 <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
                     <h4 style="color: #333; margin-bottom: 12px;">Histogram Statistics for 16 Circles</h4>
-                    <table class="stats-table">
+                    <table class="stats-table" id="histogramStats">
                         <thead>
                             <tr>
                                 <th>Circle</th>
@@ -2313,6 +2313,11 @@
                             {cell(fmt(abs(summary['lower_avg_mean'] - summary['p_air'])))}
                         </tr>
                         <tr>
+                            <td>Std of Means</td>
+                            <td>{fmt(summary['upper_std_means'])}</td>
+                            {cell(fmt(summary['lower_std_means']))}
+                        </tr>
+                        <tr>
                             <td>Divider (cm)</td>
                             <td>{summary['x_coal_mm']/10.0:.1f} cm</td>
                             {cell(f"{summary['x_coal_mm']/10.0:.1f} cm")}
@@ -2322,11 +2327,6 @@
                             <td>{fmt(summary['upper_mu_avg']*10.0)} ± {fmt(summary['upper_mu_std']*10.0)}</td>
                             {cell(f"{fmt(summary['lower_mu_avg']*10.0)} ± {fmt(summary['lower_mu_std']*10.0)}")}
                         </tr>
-                        <tr>
-                            <td>Std of Means</td>
-                            <td>{fmt(summary['upper_std_means'])}</td>
-                            {cell(fmt(summary['lower_std_means']))}
-                        </tr>
                     </tbody>
                 </table>
                 '''
@@ -2335,12 +2335,34 @@
                 notes_html = "<br>".join(notes)
                 summary_html += f'<div style="margin-top: 10px; font-size: 0.85rem; color: #666;">{notes_html}</div>'
 
+            lower_step_html = ""
+            if not is_single:
+                lower_step_html = f'''
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ccc;">
+                            <strong>Lower Sample Calculation:</strong><br>
+                            1. <strong>μ avg</strong> = |{fmt(summary['lower_avg_mean'])} - {fmt(summary['p_air'])}| = {fmt(abs(summary['lower_avg_mean'] - summary['p_air']))} ÷ {summary['x_coal_mm']/10.0:.1f} cm = {fmt(summary['lower_mu_avg']*10.0)} cm^-1<br>
+                            2. <strong>μ std</strong> = Std of Means ({fmt(summary['lower_std_means'])}) ÷ {summary['x_coal_mm']/10.0:.1f} cm = {fmt(summary['lower_mu_std']*10.0)} cm^-1<br>
+                            <strong>Result:</strong> μ = {fmt(summary['lower_mu_avg']*10.0)} ± {fmt(summary['lower_mu_std']*10.0)} cm^-1
+                        </div>'''
+
+            upper_step_label = "Sample Calculation:" if is_single else "Upper Sample Calculation:"
+
             summary_html += f'''
-                <div style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
+                <div id="stepByStepCalc" style="margin-top: 18px; background: white; padding: 16px; border-radius: 10px; border: 1px solid #d8e3f0;">
                     <h4 style="color: #333; margin-bottom: 12px;">Step-by-Step μ Calculation</h4>
                     <div style="color: #555; font-size: 0.95rem; line-height: 1.8;">
-                        <div><strong>Formula:</strong> μ = |Pcoal - Pair| / {summary['x_coal_mm']/10.0:.1f} cm</div>
-                        <div style="margin-top: 8px;"><strong>{upper_step_label}</strong> μ = {fmt(summary['upper_mu_avg']*10.0)} ± {fmt(summary['upper_mu_std']*10.0)} cm^-1</div>
+                        <div style="margin-bottom: 12px; padding: 10px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                            <strong>Formulas:</strong><br>
+                            • <strong>μ avg</strong> = |Pcoal - Pair| ÷ Divider<br>
+                            • <strong>μ std</strong> = Std of Means ÷ Divider <em>(converts raw image variance to physical variance)</em>
+                        </div>
+                        
+                        <div>
+                            <strong>{upper_step_label}</strong><br>
+                            1. <strong>μ avg</strong> = |{fmt(summary['upper_avg_mean'])} - {fmt(summary['p_air'])}| = {fmt(abs(summary['upper_avg_mean'] - summary['p_air']))} ÷ {summary['x_coal_mm']/10.0:.1f} cm = {fmt(summary['upper_mu_avg']*10.0)} cm^-1<br>
+                            2. <strong>μ std</strong> = Std of Means ({fmt(summary['upper_std_means'])}) ÷ {summary['x_coal_mm']/10.0:.1f} cm = {fmt(summary['upper_mu_std']*10.0)} cm^-1<br>
+                            <strong>Result:</strong> μ = {fmt(summary['upper_mu_avg']*10.0)} ± {fmt(summary['upper_mu_std']*10.0)} cm^-1
+                        </div>
                         {lower_step_html}
                     </div>
                 </div>
@@ -2465,7 +2487,7 @@
         function getTableDataFromElement(elementId) {
             const element = document.getElementById(elementId);
             if (!element) return null;
-            const table = element.querySelector('table');
+            const table = element.tagName === 'TABLE' ? element : element.querySelector('table');
             if (!table) return null;
             
             const data = [];
@@ -2563,7 +2585,9 @@
                             pdf.rect(margin + colIndex * colWidth, yPos - 4, colWidth, 7, 'F');
                         }
                     }
-                    const cellText = cell.length > 18 ? cell.substring(0, 16) + '..' : cell;
+                    const cellStr = typeof cell === 'string' ? cell : String(cell);
+                    let cellText = cellStr.length > 18 ? cellStr.substring(0, 16) + '..' : cellStr;
+                    cellText = cellText.replace(/μ/g, 'u').replace(/¼/g, 'u');
                     pdf.text(cellText, margin + colIndex * colWidth + 2, yPos);
                 });
                 yPos += rowIndex === 0 ? 8 : 7;
@@ -2575,19 +2599,81 @@
         function addSummarySection(pdf, summaryHtml, margin, yPos, pageHeight, title) {
             if (!summaryHtml) return yPos;
             
-            // Check if we need a new page
+            // Parse summary text
+            const lines = summaryHtml.split('\n').filter(line => line.trim());
+            
+            if (title === 'MIU Summary') {
+                const cardHeight = 14 + lines.length * 8 + 8;
+                
+                // Check if we need a new page
+                if (yPos + cardHeight > pageHeight - 15) {
+                    pdf.addPage();
+                    yPos = 15;
+                }
+                
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                
+                // Draw a premium looking container card (light blue background)
+                pdf.setFillColor(245, 247, 255);
+                pdf.roundedRect(margin, yPos, pageWidth - 2 * margin, cardHeight, 3, 3, 'F');
+                
+                // Draw a beautiful solid blue accent border on the left
+                pdf.setFillColor(102, 126, 234);
+                pdf.rect(margin, yPos, 4, cardHeight, 'F');
+                
+                const textMargin = margin + 10;
+                let currentY = yPos + 8;
+                
+                // MIU Summary Card Header
+                pdf.setFontSize(11);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setTextColor(102, 126, 234);
+                pdf.text('ATTENUATION (U) SUMMARY', textMargin, currentY);
+                currentY += 10;
+                
+                // Print the content inside the card with dynamic font sizing to emphasize key numbers
+                lines.forEach(line => {
+                    const cleanLine = line.replace(/\s+/g, ' ').trim().replace(/μ/g, 'u').replace(/¼/g, 'u');
+                    if (cleanLine) {
+                        // Skip redundant titles inside the card since we already have the card header
+                        if (cleanLine.toLowerCase() === 'results' || cleanLine.toLowerCase() === 'attenuation (u) summary') {
+                            return;
+                        }
+                        
+                        if (cleanLine.includes('±') || cleanLine.match(/\d+\.\d+/)) {
+                            pdf.setFontSize(16);
+                            pdf.setFont('helvetica', 'bold');
+                            pdf.setTextColor(21, 114, 232); // Vibrant blue for the main value
+                        } else {
+                            pdf.setFontSize(11);
+                            pdf.setFont('helvetica', 'bold');
+                            pdf.setTextColor(80, 80, 80); // Charcoal for description
+                        }
+                        pdf.text(cleanLine, textMargin, currentY);
+                        currentY += 8;
+                    }
+                });
+                
+                pdf.setFont('helvetica', 'normal');
+                return yPos + cardHeight + 8;
+            }
+            
+            // Standard/fallback summary layout
             if (yPos > pageHeight - 60) {
                 pdf.addPage();
                 yPos = 15;
             }
             
+            const cleanTitle = (title || '').replace(/μ/g, 'u').replace(/¼/g, 'u');
+            
             pdf.setFontSize(12);
             pdf.setTextColor(102, 126, 234);
-            pdf.text(title, margin, yPos);
-            yPos += 8;
+            pdf.setFont('helvetica', 'normal');
+            if (cleanTitle) {
+                pdf.text(cleanTitle, margin, yPos);
+                yPos += 8;
+            }
             
-            // Parse summary text and add to PDF
-            const lines = summaryHtml.split('\n').filter(line => line.trim());
             pdf.setFontSize(9);
             pdf.setTextColor(60);
             
@@ -2596,12 +2682,14 @@
                     pdf.addPage();
                     yPos = 15;
                 }
-                const cleanLine = line.replace(/\s+/g, ' ').trim();
-                if (cleanLine) {
+                const cleanLine = line.replace(/\s+/g, ' ').trim().replace(/μ/g, 'u').replace(/¼/g, 'u');
+                if (cleanLine && cleanLine.toLowerCase() !== cleanTitle.toLowerCase()) {
                     pdf.text(cleanLine.substring(0, 90), margin, yPos);
                     yPos += 5;
                 }
             });
+            
+            pdf.setFont('helvetica', 'normal');
             
             return yPos + 5;
         }

@@ -18,6 +18,11 @@ AIR_GRADIENT_MIN_SCORE = 0.0
 AIR_STEP_MEAN_REL_DIFF = AIR_STEP_MAX_REL_DIFF
 SPIKE_CURVATURE_SIGMA_MULTIPLIER = 3.0
 AIR_BLOCK_VALIDATION_CODE = "E_BLOCK_AIR_ROI"
+SUPPORTED_IMAGE_DTYPES = {
+    "uint16": np.dtype(np.uint16),
+    "int16": np.dtype(np.int16),
+    "float32": np.dtype(np.float32),
+}
 AIR_BLOCK_VALIDATION_ERROR = (
     f"{AIR_BLOCK_VALIDATION_CODE}: Validation Failed: The Air reference blocks (Block 1 & Block 3) captured the physical container walls "
     "or are incorrectly oriented. Expected arrangement: Block 1 leftmost and Block 3 rightmost. "
@@ -34,8 +39,8 @@ def _load_image(file_bytes):
     return img_16bit
 
 
-def _load_and_validate_image(file_bytes):
-    """Validate TIFF grayscale input and normalize any 16-bit NumPy dtype to uint16."""
+def _load_and_validate_image(file_bytes, data_type=None):
+    """Validate grayscale TIFF input and enforce the selected NumPy dtype when provided."""
     try:
         pil_img = Image.open(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -52,11 +57,28 @@ def _load_and_validate_image(file_bytes):
         raise ValueError(
             f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
         )
-    if img.dtype.kind != "u" or img.dtype.itemsize != 2:
+    expected_dtype = None
+    if data_type is not None:
+        expected_key = str(data_type).strip().lower()
+        expected_dtype = SUPPORTED_IMAGE_DTYPES.get(expected_key)
+        if expected_dtype is None:
+            allowed = ", ".join(sorted(SUPPORTED_IMAGE_DTYPES.keys()))
+            raise ValueError(
+                f"Image format validation failed: unsupported data type '{data_type}'. Choose one of: {allowed}."
+            )
+
+    if expected_dtype is not None:
+        if img.dtype != expected_dtype:
+            raise ValueError(
+                f"Image format validation failed: expected TIFF dtype '{expected_dtype.name}', got dtype '{img.dtype}'."
+            )
+        return img.astype(expected_dtype, copy=False)
+
+    if img.dtype not in SUPPORTED_IMAGE_DTYPES.values():
         raise ValueError(
-            f"Image format validation failed: expected 16-bit grayscale TIFF, got dtype '{img.dtype}'."
+            f"Image format validation failed: expected grayscale TIFF with dtype one of {', '.join(sorted(SUPPORTED_IMAGE_DTYPES.keys()))}, got dtype '{img.dtype}'."
         )
-    return img.astype(np.uint16, copy=False)
+    return img
 
 
 def _shrink_box(box, ratio=ROI_SHRINK_RATIO):
@@ -290,7 +312,7 @@ def _numpy_to_base64(img_array):
 def process_blocks(file_bytes, params):
     """Detect step-wedge reference blocks and infer full block layout (1..4)."""
     try:
-        img_16bit = _load_and_validate_image(file_bytes)
+        img_16bit = _load_and_validate_image(file_bytes, params.get("data_type"))
 
         threshold_value = params.get("threshold_value", 55000)
         min_length_rectangular = params.get("min_length_rectangular", 1400)

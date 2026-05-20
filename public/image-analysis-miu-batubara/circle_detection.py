@@ -12,6 +12,11 @@ DEBUG = True
 # Coefficient of Variation (CV = std/mean) threshold for anti-diagonal air circles.
 # AIR_CV_THRESHOLD=0.05 means CV > 5% indicates likely ROI contamination by acrylic wall/noise.
 AIR_CV_THRESHOLD = 0.05
+SUPPORTED_IMAGE_DTYPES = {
+    "uint16": np.dtype(np.uint16),
+    "int16": np.dtype(np.int16),
+    "float32": np.dtype(np.float32),
+}
 AIR_DIAGONAL_VALIDATION_CODE = "E_CIRCLE_AIR_ROI"
 AIR_DIAGONAL_VALIDATION_ERROR = (
     f"{AIR_DIAGONAL_VALIDATION_CODE}: Validation Failed: The 4 Air reference circles on the anti-diagonal show inconsistent intensities. "
@@ -30,8 +35,8 @@ def _load_image(file_bytes):
     return img_16bit
 
 
-def _load_and_validate_image(file_bytes):
-    """Validate TIFF grayscale input and normalize any 16-bit NumPy dtype to uint16."""
+def _load_and_validate_image(file_bytes, data_type=None):
+    """Validate grayscale TIFF input and enforce the selected NumPy dtype when provided."""
     try:
         pil_img = Image.open(io.BytesIO(file_bytes))
     except Exception as exc:
@@ -48,11 +53,28 @@ def _load_and_validate_image(file_bytes):
         raise ValueError(
             f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."
         )
-    if img.dtype.kind != "u" or img.dtype.itemsize != 2:
+    expected_dtype = None
+    if data_type is not None:
+        expected_key = str(data_type).strip().lower()
+        expected_dtype = SUPPORTED_IMAGE_DTYPES.get(expected_key)
+        if expected_dtype is None:
+            allowed = ", ".join(sorted(SUPPORTED_IMAGE_DTYPES.keys()))
+            raise ValueError(
+                f"Image format validation failed: unsupported data type '{data_type}'. Choose one of: {allowed}."
+            )
+
+    if expected_dtype is not None:
+        if img.dtype != expected_dtype:
+            raise ValueError(
+                f"Image format validation failed: expected TIFF dtype '{expected_dtype.name}', got dtype '{img.dtype}'."
+            )
+        return img.astype(expected_dtype, copy=False)
+
+    if img.dtype not in SUPPORTED_IMAGE_DTYPES.values():
         raise ValueError(
-            f"Image format validation failed: expected 16-bit grayscale TIFF, got dtype '{img.dtype}'."
+            f"Image format validation failed: expected grayscale TIFF with dtype one of {', '.join(sorted(SUPPORTED_IMAGE_DTYPES.keys()))}, got dtype '{img.dtype}'."
         )
-    return img.astype(np.uint16, copy=False)
+    return img
 
 
 def _numpy_to_base64(img_array):
@@ -71,7 +93,7 @@ def _numpy_to_base64(img_array):
 def process_tiff_image(file_bytes, params):
     """Detect candidate circles from TIFF image bytes."""
     try:
-        img_16bit = _load_and_validate_image(file_bytes)
+        img_16bit = _load_and_validate_image(file_bytes, params.get("data_type"))
 
         threshold_value = params.get("threshold_value", 24000)
         min_diameter = params.get("min_diameter", 50)

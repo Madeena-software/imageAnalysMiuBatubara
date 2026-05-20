@@ -269,6 +269,45 @@ def test_select_air_reference_blocks_prefers_matching_outer_pair():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("module", [circle_detection, block_detection])
+def test_load_and_validate_image_accepts_float32_tiff(module):
+    img = np.array(
+        [[0.0, 1.5, 2.5], [3.5, 4.5, 5.5], [6.5, 7.5, 8.5]],
+        dtype=np.float32,
+    )
+    buffer = BytesIO()
+    Image.fromarray(img).save(buffer, format="TIFF")
+
+    loaded = module._load_and_validate_image(buffer.getvalue(), "float32")
+
+    assert loaded.dtype == np.float32
+    assert_allclose(loaded, img, rtol=0, atol=1e-6)
+
+
+@pytest.mark.unit
+def test_circle_process_tiff_image_accepts_float32_input(monkeypatch):
+    img = np.full((96, 96), 50000.0, dtype=np.float32)
+    cv2.circle(img, (48, 48), 16, 1000.0, -1)
+
+    monkeypatch.setattr(circle_detection, "_load_and_validate_image", lambda _b, _data_type=None: img)
+
+    params = {
+        "threshold_value": 10000,
+        "min_diameter": 20,
+        "max_diameter": 60,
+        "min_circularity": 0.1,
+        "min_solidity": 0.1,
+        "expected_count": 1,
+        "grid_cols": 1,
+        "data_type": "float32",
+    }
+
+    out = circle_detection.process_tiff_image(b"dummy", params)
+
+    assert out["count"] >= 1
+
+
+@pytest.mark.unit
 def test_process_blocks_allows_calculated_block_four_to_extend_beyond_frame():
     h, w = 1600, 2260
     img = np.full((h, w), 60000, dtype=np.uint16)

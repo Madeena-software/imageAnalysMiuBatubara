@@ -794,15 +794,6 @@
                     <h3>📷 Image Preview</h3>
                     <div id="imagePreview"></div>
                 </div>
-                <div class="param-item" style="margin-top: 16px;">
-                    <label for="dataType">Input Data Type</label>
-                    <select id="dataType" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.95rem;">
-                        <option value="float32" selected>float32 (default)</option>
-                        <option value="uint16">uint16</option>
-                        <option value="int16">int16</option>
-                    </select>
-                    <small><strong>Impact:</strong> Select the TIFF pixel dtype before processing. Use float32 for the new sample, or switch to uint16/int16 for legacy files.</small>
-                </div>
             </div>
 
             <!-- Circle Parameters Section -->
@@ -839,6 +830,16 @@
                             <label for="circleAirCvThreshold">Air CV Validation Threshold</label>
                             <input type="number" id="circleAirCvThreshold" value="0.2" min="0.01" max="1.00" step="0.01" />
                             <small><strong>Impact:</strong> Higher allows more main diagonal air intensity variation (default: 0.2)</small>
+                        </div>
+                        <div class="param-item">
+                            <label for="dataType">Input Data Type</label>
+                            <select id="dataType" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.95rem;">
+                                <option value="float64" selected>float64 (default)</option>
+                                <option value="float32">float32</option>
+                                <option value="uint16">uint16</option>
+                                <option value="int16">int16</option>
+                            </select>
+                            <small><strong>Impact:</strong> Select the TIFF pixel dtype before processing. Use float64 for the new sample, or switch to float32/uint16/int16 for other files.</small>
                         </div>
                         <div class="param-item">
                             <label for="circleTotalSample">Total Sample</label>

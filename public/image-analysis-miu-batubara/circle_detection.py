@@ -16,6 +16,7 @@ SUPPORTED_IMAGE_DTYPES = {
     "uint16": np.dtype(np.uint16),
     "int16": np.dtype(np.int16),
     "float32": np.dtype(np.float32),
+    "float64": np.dtype(np.float64),
 }
 AIR_DIAGONAL_VALIDATION_CODE = "E_CIRCLE_AIR_ROI"
 AIR_DIAGONAL_VALIDATION_ERROR = (
@@ -28,27 +29,19 @@ AIR_DIAGONAL_VALIDATION_ERROR = (
 def _load_image(file_bytes):
     """Load TIFF bytes into a NumPy array, compatible with PyScript runtime."""
     nparr = np.frombuffer(file_bytes, np.uint8)
-    img_16bit = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
-    if img_16bit is None:
+    img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+    if img is not None:
+        return img
+    try:
         pil_img = Image.open(io.BytesIO(file_bytes))
-        img_16bit = np.array(pil_img)
-    return img_16bit
+        return np.array(pil_img)
+    except Exception as exc:
+        raise ValueError(f"Image format validation failed: unable to decode image bytes ({exc}).") from exc
 
 
 def _load_and_validate_image(file_bytes, data_type=None):
     """Validate grayscale TIFF input and enforce the selected NumPy dtype when provided."""
-    try:
-        pil_img = Image.open(io.BytesIO(file_bytes))
-    except Exception as exc:
-        raise ValueError(f"Image format validation failed: unable to read image bytes ({exc}).") from exc
-
-    img_format = (pil_img.format or "unknown").upper()
-    if img_format != "TIFF":
-        raise ValueError(
-            f"Image format validation failed: expected 16-bit grayscale TIFF, got format '{img_format}'."
-        )
-
-    img = np.array(pil_img)
+    img = _load_image(file_bytes)
     if img.ndim != 2:
         raise ValueError(
             f"Image format validation failed: expected grayscale TIFF (single channel), got shape {img.shape}."

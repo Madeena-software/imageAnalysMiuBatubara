@@ -18,6 +18,62 @@
     return 0;
   }
 
+  function ensureSpace(pdf, yPos, pageHeight, margin, requiredHeight) {
+    if (yPos + requiredHeight > pageHeight - margin) {
+      pdf.addPage();
+      return margin;
+    }
+    return yPos;
+  }
+
+  function addSectionTitle(pdf, title, margin, yPos) {
+    pdf.setFontSize(14);
+    pdf.setTextColor(51, 51, 51);
+    pdf.text(title, margin, yPos);
+    return yPos + 6;
+  }
+
+  function addParametersSectionToPdf(pdf, params, margin, yPos, pageHeight) {
+    yPos = ensureSpace(pdf, yPos, pageHeight, margin, 18);
+    pdf.setFontSize(12);
+    pdf.setTextColor(102, 126, 234);
+    pdf.text('Processing Parameters', margin, yPos);
+    yPos += 7;
+
+    pdf.setFontSize(10);
+    pdf.setTextColor(60);
+    for (const [key, value] of Object.entries(params)) {
+      yPos = ensureSpace(pdf, yPos, pageHeight, margin, 8);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(key + ':', margin, yPos);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(String(value), margin + 50, yPos, { maxWidth: 120 });
+      yPos += 6;
+    }
+    pdf.setFont('helvetica', 'normal');
+    return yPos + 5;
+  }
+
+  async function addImageSectionToPdf(pdf, title, elementId, margin, yPos, pageHeight, contentWidth, maxHeight) {
+    yPos = ensureSpace(pdf, yPos, pageHeight, margin, maxHeight + 16);
+    yPos = addSectionTitle(pdf, title, margin, yPos);
+    yPos += await tryAddImage(pdf, elementId, margin, yPos, contentWidth, maxHeight);
+    return yPos;
+  }
+
+  function addTableSectionToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, title) {
+    yPos = ensureSpace(pdf, yPos, pageHeight, margin, 28);
+    return addTableToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, title);
+  }
+
+  function getSelectedImageFilename() {
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput && fileInput.files && fileInput.files.length > 0 && fileInput.files[0].name) {
+      return fileInput.files[0].name;
+    }
+    return 'Not available';
+  }
+
   // Main circle export that mirrors the Python layout requested
   window.exportCircleResultsToPdf = async function() {
     const { jsPDF } = window.jspdf;
@@ -29,28 +85,32 @@
     let yPos = margin;
 
     // Header
+    const imageFilename = getSelectedImageFilename();
     pdf.setFontSize(16);
     pdf.setTextColor(21, 114, 232);
-    pdf.text('Image Analysis Report', pageWidth / 2, yPos, { align: 'center' });
+    pdf.text('MIU Image Analysis Report', pageWidth / 2, yPos, { align: 'center' });
     yPos += 8;
     pdf.setFontSize(10);
     pdf.setTextColor(100);
+    pdf.text('Image File: ' + imageFilename, pageWidth / 2, yPos, { align: 'center', maxWidth: contentWidth });
+    yPos += 6;
     pdf.text('Generated: ' + new Date().toLocaleString(), pageWidth / 2, yPos, { align: 'center' });
     yPos += 6;
     pdf.setDrawColor(21, 114, 232);
     pdf.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 8;
 
-    // 1. Summary MIU (try 'miuSummary' then 'diagonalSummary')
+    // 1. MIU Summary (try 'miuSummary' then 'diagonalSummary')
     if (typeof getSummaryTextFromElement === 'function') {
       const miuHtml = document.getElementById('miuSummary') ? document.getElementById('miuSummary').innerText : null;
       if (miuHtml) {
         yPos += 2;
+        yPos = ensureSpace(pdf, yPos, pageHeight, margin, 28);
         yPos = addSummarySection(pdf, miuHtml, margin, yPos, pageHeight, 'MIU Summary');
       } else {
         const diagonalTable = typeof getTableDataFromElement === 'function' && getTableDataFromElement('diagonalSummary');
         if (diagonalTable) {
-          yPos = addTableToPdf(pdf, diagonalTable, margin, yPos, pageHeight, contentWidth, 'MIU Summary');
+          yPos = addTableSectionToPdf(pdf, diagonalTable, margin, yPos, pageHeight, contentWidth, 'MIU Summary');
         }
       }
     }
@@ -59,74 +119,39 @@
     if (typeof getTableDataFromElement === 'function') {
       const summaryTable = getTableDataFromElement('diagonalSummary');
       if (summaryTable) {
-        if (yPos > pageHeight - 80) { pdf.addPage(); yPos = margin; }
-        yPos = addTableToPdf(pdf, summaryTable, margin, yPos, pageHeight, contentWidth, 'Summary Statistics');
+        yPos = addTableSectionToPdf(pdf, summaryTable, margin, yPos, pageHeight, contentWidth, 'Summary Statistics');
       }
     }
 
-    // 3. Parameters
+    // 3. Processing Parameters
     if (typeof getParametersFromUI === 'function') {
       const params = getParametersFromUI('circle');
-      if (yPos > pageHeight - 90) { pdf.addPage(); yPos = margin; }
-      pdf.setFontSize(12);
-      pdf.setTextColor(104, 97, 206);
-      pdf.text('Processing Parameters', margin, yPos);
-      yPos += 6;
-      if (typeof addParametersSection === 'function') {
-        yPos = addParametersSection(pdf, params, margin, yPos);
-      } else {
-        pdf.setFontSize(10);
-        pdf.setTextColor(60);
-        for (const k in params) {
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(k + ':', margin, yPos);
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(String(params[k]), margin + 50, yPos);
-          yPos += 5;
-          if (yPos > pageHeight - 40) { pdf.addPage(); yPos = margin; }
-        }
-      }
+      yPos = addParametersSectionToPdf(pdf, params, margin, yPos, pageHeight);
       yPos += 6;
     }
 
     // 4. Detection Result (image)
-    pdf.setFontSize(14);
-    pdf.setTextColor(51,51,51);
-    pdf.text('Detection Result', margin, yPos);
-    yPos += 6;
-    yPos += await tryAddImage(pdf, 'detectionImage', margin, yPos, contentWidth, 70);
+    yPos = await addImageSectionToPdf(pdf, 'Detection Result', 'detectionImage', margin, yPos, pageHeight, contentWidth, 70);
 
     // 5. Detection Statistics - All Detected Circles (table)
     if (typeof getTableDataFromElement === 'function') {
       const tableData = getTableDataFromElement('statsTable');
       if (tableData) {
-        if (yPos > pageHeight - 60) { pdf.addPage(); yPos = margin; }
-        yPos = addTableToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, 'Detection Statistics - All Detected Circles');
+        yPos = addTableSectionToPdf(pdf, tableData, margin, yPos, pageHeight, contentWidth, 'Detection Statistics - All Detected Circles');
       }
     }
 
     // 6. Grid Analysis (16 Positions)
-    if (yPos > pageHeight - 120) { pdf.addPage(); yPos = margin; }
-    pdf.setFontSize(14);
-    pdf.setTextColor(51,51,51);
-    pdf.text('Grid Analysis (16 Positions)', margin, yPos);
-    yPos += 6;
-    yPos += await tryAddImage(pdf, 'gridImage', margin, yPos, contentWidth, 120);
+    yPos = await addImageSectionToPdf(pdf, 'Grid Analysis (16 Positions)', 'gridImage', margin, yPos, pageHeight, contentWidth, 120);
 
-    // 7. Histogram analysis
-    if (yPos > pageHeight - 160) { pdf.addPage(); yPos = margin; }
-    pdf.setFontSize(14);
-    pdf.setTextColor(51,51,51);
-    pdf.text('Histogram Analysis', margin, yPos);
-    yPos += 6;
-    yPos += await tryAddImage(pdf, 'histogramImage', margin, yPos, contentWidth, 160);
+    // 7. Histogram Analysis
+    yPos = await addImageSectionToPdf(pdf, 'Histogram Analysis', 'histogramImage', margin, yPos, pageHeight, contentWidth, 160);
 
     // 8. Histogram Statistics for 16 Circles (try table 'histogramStats' or 'histogramTable')
     if (typeof getTableDataFromElement === 'function') {
       const histTable = getTableDataFromElement('histogramStats') || getTableDataFromElement('histogramTable');
       if (histTable) {
-        if (yPos > pageHeight - 100) { pdf.addPage(); yPos = margin; }
-        yPos = addTableToPdf(pdf, histTable, margin, yPos, pageHeight, contentWidth, 'Histogram Statistics for 16 Circles');
+        yPos = addTableSectionToPdf(pdf, histTable, margin, yPos, pageHeight, contentWidth, 'Histogram Statistics for 16 Circles');
       }
     }
 

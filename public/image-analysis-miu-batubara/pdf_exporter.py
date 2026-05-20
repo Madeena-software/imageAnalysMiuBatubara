@@ -17,6 +17,30 @@ class ImageAnalysisPDF(FPDF):
     def __init__(self):
         super().__init__()
         self.set_auto_page_break(auto=True, margin=15)
+        # Try to register a Unicode TTF font (DejaVu) for μ and other symbols.
+        try:
+            import os
+
+            dejavu_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+            if os.path.exists(dejavu_path):
+                # register regular and bold under the same file (fpdf supports this)
+                self.add_font("DejaVu", "", dejavu_path, uni=True)
+                self.add_font("DejaVu", "B", dejavu_path, uni=True)
+                self.unicode_font = "DejaVu"
+            else:
+                self.unicode_font = None
+        except Exception:
+            self.unicode_font = None
+
+    def safe_text(self, text: str) -> str:
+        """Return text safe to print with current fonts. If Unicode font available,
+        return text unchanged; otherwise replace μ with 'u' as fallback.
+        """
+        if not isinstance(text, str):
+            return text
+        if self.unicode_font:
+            return text
+        return text.replace("μ", "u")
 
     def header(self):
         """PDF Header"""
@@ -70,10 +94,27 @@ class ImageAnalysisPDF(FPDF):
 
     def add_key_value(self, key, value):
         """Add a key-value pair"""
-        self.set_font("Helvetica", "B", 10)
+        # Choose a font that can render the key. If key contains non-ascii and
+        # a Unicode font is available, use it; otherwise fall back to Helvetica.
+        try:
+            needs_unicode = any(ord(c) > 127 for c in str(key))
+        except Exception:
+            needs_unicode = False
+
+        if needs_unicode and self.unicode_font:
+            self.set_font(self.unicode_font, "B", 10)
+        else:
+            self.set_font("Helvetica", "B", 10)
+
         self.set_text_color(87, 89, 98)
         self.cell(60, 6, f"{key}:", ln=False)
-        self.set_font("Helvetica", "", 10)
+
+        # Value text — use Unicode font if needed
+        if needs_unicode and self.unicode_font:
+            self.set_font(self.unicode_font, "", 10)
+        else:
+            self.set_font("Helvetica", "", 10)
+
         self.cell(0, 6, str(value), ln=True)
 
     def add_image_from_base64(self, base64_string, width=180, caption=None):
@@ -136,6 +177,80 @@ class ImageAnalysisPDF(FPDF):
 
         self.ln(5)
 
+    def add_gong(self):
+        """Decorative header space — no literal 'gong' text (metaphor removed).
+
+        This draws a subtle accent line and leaves space for the MIU summary
+        to be the primary visual element at the top of the report.
+        """
+        self.set_draw_color(200, 200, 220)
+        y = self.get_y()
+        self.line(20, y + 6, 190, y + 6)
+        self.ln(8)
+
+    def add_miu_summary(self, summary, kind="circle"):
+        """Render a compact MIU/attenuation summary box similar to the web UI.
+
+        summary: dict-like payload with keys depending on kind:
+            - circle (diagonal_result.summary): upper_mu_avg, lower_mu_avg, upper_mu_std, lower_mu_std
+            - block (comparison_result.summary): mu_block2, mu_block4, delta values
+        """
+        if not summary:
+            return
+
+        # Draw background box
+        x = self.get_x()
+        y = self.get_y()
+        box_w = 190
+        box_h = 32
+        self.set_fill_color(245, 247, 255)
+        self.rect(x, y, box_w, box_h, style="F")
+
+        # Title
+        self.set_xy(x + 4, y + 3)
+        self.set_font("Helvetica", "B", 11)
+        self.set_text_color(22, 84, 200)
+        title = "MIU Summary"
+        self.cell(0, 6, title, ln=True)
+
+        # Left / Right values
+        self.set_xy(x + 6, y + 12)
+        self.set_font("Helvetica", "B", 10)
+        self.set_text_color(34, 40, 49)
+
+        if kind == "circle":
+            upper = float(summary.get("upper_mu_avg", 0.0))
+            lower = float(summary.get("lower_mu_avg", 0.0))
+            upper_std = float(summary.get("upper_mu_std", 0.0))
+            lower_std = float(summary.get("lower_mu_std", 0.0))
+            # convert if payload uses 16-bit normalization (keep magnitude)
+            try:
+                # preserve original scaling used elsewhere (UI uses custom scaling)
+                left_str = f"Upper: {abs(upper):.3e} ± {upper_std:.3e}"
+                right_str = f"Lower: {abs(lower):.3e} ± {lower_std:.3e}"
+            except Exception:
+                left_str = f"Upper: {summary.get('upper_mu_avg', 'N/A')}"
+                right_str = f"Lower: {summary.get('lower_mu_avg', 'N/A')}"
+
+        else:
+            left = float(summary.get("mu_block2", summary.get("mu_block1", 0.0)))
+            right = float(summary.get("mu_block4", summary.get("mu_block3", 0.0)))
+            left_delta = float(summary.get("delta_mu_block2", 0.0))
+            right_delta = float(summary.get("delta_mu_block4", 0.0))
+            left_str = f"Block2: {abs(left):.3e} ± {left_delta:.3e}"
+            right_str = f"Block4: {abs(right):.3e} ± {right_delta:.3e}"
+
+        # Left column
+        self.set_font("Helvetica", "B", 10)
+        self.set_text_color(34, 40, 49)
+        self.cell(95, 6, left_str, ln=False)
+        # Right column
+        self.set_font("Helvetica", "B", 10)
+        self.set_text_color(34, 40, 49)
+        self.cell(95, 6, right_str, ln=True)
+
+        self.ln(6)
+
 
 def generate_circle_detection_pdf(
     filename,
@@ -171,6 +286,11 @@ def generate_circle_detection_pdf(
         pdf = ImageAnalysisPDF()
         pdf.alias_nb_pages()
         pdf.add_page()
+        # First page decorative marker and MIU summary (align with web UI)
+        pdf.add_gong()
+        # If diagonal_result contains summary, show MIU summary first
+        if diagonal_result and isinstance(diagonal_result, dict):
+            pdf.add_miu_summary(diagonal_result.get("summary", {}), kind="circle")
 
         # Title section
         pdf.add_section_title("Circle Detection Analysis")
@@ -292,7 +412,7 @@ def generate_circle_detection_pdf(
                 "Average Mean", f"{summary.get('lower_avg_mean', 'N/A'):.2f}"
             )
             pdf.add_key_value(
-                "μ ± std (m^-1)", f"{lower_normalized:.3f} ± {lower_normalized_std:.3f}"
+                pdf.safe_text("μ ± std (m^-1)"), f"{lower_normalized:.3f} ± {lower_normalized_std:.3f}"
             )
             pdf.add_key_value(
                 "Average Median", f"{summary.get('lower_avg_median', 'N/A'):.2f}"
@@ -307,7 +427,7 @@ def generate_circle_detection_pdf(
                 "Average Mean", f"{summary.get('upper_avg_mean', 'N/A'):.2f}"
             )
             pdf.add_key_value(
-                "μ ± std (m^-1)", f"{upper_normalized:.3f} ± {upper_normalized_std:.3f}"
+                pdf.safe_text("μ ± std (m^-1)"), f"{upper_normalized:.3f} ± {upper_normalized_std:.3f}"
             )
             pdf.add_key_value(
                 "Average Median", f"{summary.get('upper_avg_median', 'N/A'):.2f}"
@@ -376,6 +496,10 @@ def generate_block_detection_pdf(
         pdf = ImageAnalysisPDF()
         pdf.alias_nb_pages()
         pdf.add_page()
+        # First page decorative marker and MIU summary (align with web UI)
+        pdf.add_gong()
+        if comparison_result and isinstance(comparison_result, dict):
+            pdf.add_miu_summary(comparison_result.get("summary", {}), kind="block")
 
         # Title section
         pdf.add_section_title("Block Detection Analysis")

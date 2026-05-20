@@ -378,8 +378,7 @@ def analyze_grid_histograms(file_bytes, grid_results):
 
         for row in range(grid_size):
             for col in range(grid_size):
-                display_col = (grid_size - 1) - col
-                ax = axes[row, display_col]
+                ax = axes[row, col]
                 grid_pos_id = row * grid_size + col + 1
                 if (row, col) not in measured_pixels:
                     ax.text(
